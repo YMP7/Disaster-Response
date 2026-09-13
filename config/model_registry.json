@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "active_models": {
+    "stage1_triage": "stage1_mobilenetv3_triage_v1"
+  },
+  "models": {
+    "stage1_mobilenetv3_triage_v1": {
+      "model_id": "stage1_mobilenetv3_triage_v1",
+      "version": "1.0.0",
+      "stage": "stage1_triage",
+      "architecture": "MobileNetV3-Small",
+      "dataset_provenance": [
+        "AIDER",
+        "SyntheticAerialGenerator",
+        "IndiaDomainAugmentor"
+      ],
+      "sha256_checksum": "0aef0ce68c683280d7d8312f81ae25ade628ef08dba291cdee199b54dc9bb020",
+      "metrics": {
+        "val_accuracy": 0.25,
+        "expected_calibration_error": 0.1178,
+        "max_calibration_error": 0.1178
+      },
+      "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt",
+      "is_active": true,
+      "registered_at": 1726000000.0
+    }
+  }
+}

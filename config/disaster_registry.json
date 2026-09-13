@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "disaster_classes": {
+    "flood": {
+      "display_name": "Flood & Inundation",
+      "visual_cues": "Water extent, submerged roads/buildings, high turbidity color/texture change",
+      "stage2_module": "models.stage2_severity.FloodSeverityHead",
+      "priority_level": 1,
+      "sensor_modalities": ["optical_rgb", "sar_backscatter"],
+      "response_playbook": "water_rescue_and_dewatering"
+    },
+    "cyclone_storm": {
+      "display_name": "Cyclone / Storm Damage",
+      "visual_cues": "Roof loss, debris fields, uprooted trees, storm-surge water",
+      "stage2_module": "models.stage2_severity.CycloneSeverityHead",
+      "priority_level": 1,
+      "sensor_modalities": ["optical_rgb", "sar_backscatter"],
+      "response_playbook": "cyclone_shelter_and_clearance"
+    },
+    "earthquake_collapse": {
+      "display_name": "Earthquake / Structural Collapse",
+      "visual_cues": "Rubble, structural tilt, pancake collapses, roof deformation",
+      "stage2_module": "models.stage2_severity.StructuralDamageHead",
+      "priority_level": 1,
+      "sensor_modalities": ["optical_rgb", "lidar"],
+      "response_playbook": "urban_search_and_rescue"
+    },
+    "landslide": {
+      "display_name": "Landslide / Slope Failure",
+      "visual_cues": "Slope scarring, debris flow, blocked highway corridors",
+      "stage2_module": "models.stage2_severity.LandslideSeverityHead",
+      "priority_level": 2,
+      "sensor_modalities": ["optical_rgb", "dem_elevation"],
+      "response_playbook": "slope_stabilization_and_corridor_clearing"
+    },
+    "wildfire": {
+      "display_name": "Wildfire / Forest Fire",
+      "visual_cues": "Smoke plume, burn scar, active flame front",
+      "stage2_module": "models.stage2_severity.WildfireSeverityHead",
+      "priority_level": 2,
+      "sensor_modalities": ["optical_rgb", "thermal_ir"],
+      "response_playbook": "aerial_firefighting_perimeter"
+    },
+    "industrial_chemical": {
+      "display_name": "Industrial / Chemical Hazard",
+      "visual_cues": "Chemical smoke plume color/shape distinct from wildfire, blast structural damage",
+      "stage2_module": "models.stage2_severity.IndustrialHazardHead",
+      "priority_level": 1,
+      "sensor_modalities": ["optical_rgb", "multispectral_gas"],
+      "response_playbook": "chemical_exclusion_zone_evacuation"
+    },
+    "drought_heatwave": {
+      "display_name": "Drought / Vegetation Stress",
+      "visual_cues": "NDVI decline, water reservoir shrinkage over multi-temporal series",
+      "stage2_module": "models.stage2_severity.DroughtTrendHead",
+      "priority_level": 3,
+      "sensor_modalities": ["multispectral_ndvi", "thermal_lst"],
+      "response_playbook": "drought_tanker_rationing"
+    },
+    "normal_scene": {
+      "display_name": "Normal / No Disaster",
+      "visual_cues": "Intact infrastructure, standard traffic, unperturbed terrain",
+      "stage2_module": null,
+      "priority_level": 4,
+      "sensor_modalities": ["optical_rgb"],
+      "response_playbook": "routine_monitoring"
+    },
+    "uncertain_needs_review": {
+      "display_name": "Uncertain / Multi-Sensor Disagreement",
+      "visual_cues": "Low model confidence, conflicting sensor inputs, heavy occlusion",
+      "stage2_module": null,
+      "priority_level": 1,
+      "sensor_modalities": ["all"],
+      "response_playbook": "escalate_to_command_center_human"
+    }
+  }
+}
