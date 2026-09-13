@@ -69,7 +69,7 @@ class Trainer:
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-        model = Stage1EdgeClassifier(pretrained=False)
+        model = Stage1EdgeClassifier(pretrained=True)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 

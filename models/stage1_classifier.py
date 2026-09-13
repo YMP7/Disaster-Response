@@ -5,6 +5,7 @@ Classifies raw imagery to route to specialized Stage-2 modules.
 """
 
 from typing import Dict, Any, Tuple, Optional
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -28,10 +29,11 @@ class Stage1EdgeClassifier(nn.Module):
         DisasterClass.NORMAL_SCENE
     ]
 
-    def __init__(self, pretrained: bool = False, num_classes: int = len(CLASSES)):
+    def __init__(self, pretrained: bool = True, num_classes: int = len(CLASSES)):
         super().__init__()
-        # Use MobileNetV3-Small for minimal edge footprint and power consumption
-        base_model = models.mobilenet_v3_small(weights=None)
+        # Use MobileNetV3-Small with ImageNet pretrained weights for edge transfer learning
+        weights = models.MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
+        base_model = models.mobilenet_v3_small(weights=weights)
         self.features = base_model.features
         self.avgpool = base_model.avgpool
         
@@ -66,13 +68,24 @@ class Stage1EdgeClassifier(nn.Module):
 class DisasterTriageEngine:
     """Production inference wrapper with calibration and uncertainty gating."""
 
-    def __init__(self, weights_path: Optional[str] = None):
-        self.model = Stage1EdgeClassifier()
-        if weights_path:
+    DEFAULT_WEIGHTS_PATH = Path("models/weights/stage1_mobilenetv3_india_v1.pt")
+
+    def __init__(self, weights_path: Optional[str] = None, pretrained_backbone: bool = True):
+        self.model = Stage1EdgeClassifier(pretrained=pretrained_backbone)
+        
+        # Check explicit path first, then default trained weights path
+        target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+        if target_path.exists():
             try:
-                self.model.load_state_dict(torch.load(weights_path, map_location="cpu"))
+                state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
+                self.model.load_state_dict(state_dict)
             except Exception:
-                pass
+                # Fallback to weights_only=False if older PyTorch serialization
+                try:
+                    state_dict = torch.load(target_path, map_location="cpu")
+                    self.model.load_state_dict(state_dict)
+                except Exception:
+                    pass
         self.model.eval()
 
     def predict(

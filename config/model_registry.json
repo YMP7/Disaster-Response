@@ -14,11 +14,11 @@
         "SyntheticAerialGenerator",
         "IndiaDomainAugmentor"
       ],
-      "sha256_checksum": "0aef0ce68c683280d7d8312f81ae25ade628ef08dba291cdee199b54dc9bb020",
+      "sha256_checksum": "53b2a7524434df54f8e72daf53bd4593f3abb303a0a779659f58c43426371b20",
       "metrics": {
-        "val_accuracy": 0.25,
-        "expected_calibration_error": 0.1178,
-        "max_calibration_error": 0.1178
+        "val_accuracy": 0.5,
+        "expected_calibration_error": 0.2315,
+        "max_calibration_error": 0.6771
       },
       "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt",
       "is_active": true,

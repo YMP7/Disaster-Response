@@ -20,3 +20,8 @@ scratch/
 # OS artifacts
 Thumbs.db
 .DS_Store
+
+# Datasets
+data/*
+!data/README.md
+
