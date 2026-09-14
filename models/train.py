@@ -516,19 +516,22 @@ class Trainer:
     def train_stage2_rescuenet(
         self, 
         data_dir: Path = Path("data/RescueNet"),
-        epochs: int = 4, 
+        epochs: int = 8, 
         batch_size: int = 32, 
-        lr: float = 0.001
+        lr: float = 0.0005
     ) -> Dict[str, Any]:
         """Trains Stage 2 StructuralDamageHead on RescueNet post-disaster building crops,
         and trains RoadPassabilityClassifier on real RescueNet RGB road scenes.
+        Enforces clean model initialization, fixed seeds, and deployment quality gates.
         """
         print(f"\n--- [TRAIN STAGE 2] RescueNet Structural Damage & Road Accessibility ---")
+        torch.manual_seed(42)
+        np.random.seed(42)
         
         if data_dir.exists() and any(data_dir.rglob("*.png")):
             print(f"Extracting building crops from RescueNet: {data_dir}")
-            train_dataset = RescueNetDamageDataset(data_dir, split="train", max_samples_per_class=120)
-            val_dataset = RescueNetDamageDataset(data_dir, split="val", max_samples_per_class=40)
+            train_dataset = RescueNetDamageDataset(data_dir, split="train", max_samples_per_class=120, seed=42)
+            val_dataset = RescueNetDamageDataset(data_dir, split="val", max_samples_per_class=40, seed=42)
             provenance = ["RescueNet (UAV Hurricane Assessment)", "Ground-Truth Damage Masks"]
         else:
             print("RescueNet dataset not found, skipping training.")
@@ -541,7 +544,8 @@ class Trainer:
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-        model = StructuralDamageHead()
+        # Force fresh weights initialization (load_weights=False) to prevent checkpoint contamination
+        model = StructuralDamageHead(load_weights=False)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
@@ -583,10 +587,27 @@ class Trainer:
         torch.save(model.state_dict(), weights_file)
         print(f"[OK] Saved Stage 2 Structural weights: {weights_file}")
 
+        registered_meta = self.registry.register_model(
+            model_id="stage2_structural_rescuenet_v1",
+            version="1.0.0",
+            stage="stage2_severity",
+            architecture="StructuralDamageHead (4-Tier Ordinal CNN)",
+            dataset_provenance=provenance,
+            weights_path=weights_file,
+            metrics={
+                "val_damage_accuracy": round(accuracy, 4),
+                "val_ordinal_mae": round(ordinal_mae, 4),
+                "num_val_crops": len(val_dataset)
+            },
+            activate_immediately=True
+        )
+
         # Train RoadPassabilityClassifier on real RescueNet RGB scenes
         print(f"Training RoadPassabilityClassifier on real RescueNet RGB road scenes...")
-        road_train_ds = RescueNetRoadDataset(data_dir, split="train", max_samples=150)
-        road_model = RoadPassabilityClassifier()
+        road_train_ds = RescueNetRoadDataset(data_dir, split="train", max_samples=150, seed=42)
+        road_model = RoadPassabilityClassifier(load_weights=False)
+        road_acc = 0.50
+        road_samples = 0
         if len(road_train_ds) > 0:
             road_loader = DataLoader(road_train_ds, batch_size=16, shuffle=True)
             road_criterion = nn.CrossEntropyLoss()
@@ -612,29 +633,16 @@ class Trainer:
             print(f"[OK] Saved Stage 2 Road Passability weights: {road_weights_file}")
             road_model.has_weights = True
 
-        # Validate Road Passability with matching ground-truth and prediction criteria across 75 real scenes
-        road_acc, road_samples = self._validate_rescuenet_roads(data_dir, road_model=road_model, num_samples=75)
+            # Validate Road Passability with matching ground-truth and prediction criteria
+            road_acc, road_samples = self._validate_rescuenet_roads(data_dir, road_model=road_model, num_samples=75)
 
-        metrics = {
-            "val_damage_accuracy": round(accuracy, 4),
-            "val_ordinal_mae": round(ordinal_mae, 4),
-            "val_road_passability_accuracy": round(road_acc, 4),
-            "num_val_crops": len(val_dataset),
-            "num_road_eval_scenes": road_samples
-        }
+            # QUALITY GATE: Model must outperform naive chance level (0.50) to be marked active
+            road_is_active = road_acc > 0.60
+            road_status = "active" if road_is_active else "trained_but_ineffective"
+            if not road_is_active:
+                print(f"[QUALITY GATE REJECTED] RoadPassabilityClassifier accuracy ({road_acc*100:.1f}%) is at chance level.")
+                print(f"                       Marking as '{road_status}' and DEACTIVATING in model registry.")
 
-        registered_meta = self.registry.register_model(
-            model_id="stage2_structural_rescuenet_v1",
-            version="1.0.0",
-            stage="stage2_severity",
-            architecture="StructuralDamageHead (4-Tier Ordinal CNN)",
-            dataset_provenance=provenance,
-            weights_path=weights_file,
-            metrics=metrics,
-            activate_immediately=True
-        )
-
-        if road_weights_file.exists():
             self.registry.register_model(
                 model_id="stage2_road_passability_v1",
                 version="1.0.0",
@@ -643,8 +651,27 @@ class Trainer:
                 dataset_provenance=["RescueNet (UAV Post-Hurricane)", "Road Accessibility Ground Truth"],
                 weights_path=road_weights_file,
                 metrics={"val_road_passability_accuracy": round(road_acc, 4), "samples_evaluated": road_samples},
-                activate_immediately=True
+                activate_immediately=road_is_active
             )
+            # Ensure inactive status and explanatory note are recorded in registry
+            if not road_is_active:
+                m = self.registry.models.get("stage2_road_passability_v1")
+                if m:
+                    m.status = road_status
+                    m.is_active = False
+                    m.notes = f"Trained on RescueNet RGB road scenes with cross-entropy. Achieved {road_acc*100:.1f}% accuracy across {road_samples} held-out scenes (chance level). Deactivated in registry; requires larger aerial dataset or higher-resolution road segmentation before deployment."
+                    if "stage2_road_passability" in self.registry.active_models:
+                        del self.registry.active_models["stage2_road_passability"]
+                    self.registry._save()
+
+        metrics = {
+            "val_damage_accuracy": round(accuracy, 4),
+            "val_ordinal_mae": round(ordinal_mae, 4),
+            "val_road_passability_accuracy": round(road_acc, 4),
+            "road_passability_status": "active" if road_acc > 0.60 else "trained_but_ineffective",
+            "num_val_crops": len(val_dataset),
+            "num_road_eval_scenes": road_samples
+        }
 
         return {
             "status": "success",
@@ -708,6 +735,96 @@ class Trainer:
         print(f"[OK] Evaluated Road Passability on {evaluated} real RescueNet RGB scenes: Accuracy = {acc * 100:.2f}%")
         return acc, evaluated
 
+    def _evaluate_canonical_floodnet(
+        self, 
+        unet_model: FloodSegmentationUNet, 
+        data_dir: Path, 
+        sample_size: int = 40, 
+        seed: int = 42
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Single Canonical Evaluator for FloodNet:
+        Evaluates both the legacy HSV heuristic baseline and the trained U-Net
+        on the exact same held-out validation images and ground truth masks.
+        Guarantees single, consistent, reproducible metrics across reports and registries.
+        """
+        val_dataset = FloodNetSegmentationDataset(data_dir, split="val", max_samples=sample_size, seed=seed)
+        if len(val_dataset) == 0:
+            return {}, {}
+
+        # Tracking for Legacy Heuristic
+        hsv_extent_errors = []
+        hsv_ious = []
+        hsv_road_agreements = []
+
+        # Tracking for Trained U-Net
+        unet_extent_errors = []
+        unet_ious = []
+
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+        unet_model.eval()
+
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+
+        with torch.no_grad():
+            for x, y in val_loader:
+                gt_mask = y[0, 0].cpu().numpy()  # (128, 128), values 0.0 or 1.0
+                gt_pct = float(np.mean(gt_mask) * 100.0)
+
+                # Denormalize x back to uint8 RGB for heuristic evaluation
+                rgb_t = (x * std + mean) * 255.0
+                rgb_np = torch.clamp(rgb_t[0].permute(1, 2, 0), 0, 255).cpu().numpy().astype(np.uint8)
+
+                # 1. Legacy HSV Heuristic
+                hsv = cv2.cvtColor(rgb_np, cv2.COLOR_RGB2HSV)
+                mask_silt = cv2.inRange(hsv, np.array([10, 45, 35]), np.array([48, 255, 220]))
+                mask_blue = cv2.inRange(hsv, np.array([75, 40, 30]), np.array([140, 255, 255]))
+                pred_hsv = (cv2.bitwise_or(mask_silt, mask_blue) > 0).astype(np.uint8)
+                hsv_pct = float(np.mean(pred_hsv) * 100.0)
+
+                h_inter = np.logical_and(pred_hsv, gt_mask > 0.5).sum()
+                h_union = np.logical_or(pred_hsv, gt_mask > 0.5).sum()
+                h_iou = float(h_inter / h_union) if h_union > 0 else (1.0 if gt_pct == 0 else 0.0)
+                hsv_extent_errors.append(abs(hsv_pct - gt_pct))
+                hsv_ious.append(h_iou)
+
+                gt_road_blocked = (gt_pct > 15.0)
+                pred_road_blocked = (hsv_pct > 30.0)
+                hsv_road_agreements.append(pred_road_blocked == gt_road_blocked)
+
+                # 2. Trained Flood U-Net
+                logits = unet_model(x)
+                pred_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()
+                pred_unet = (pred_prob > 0.5).astype(np.uint8)
+                unet_pct = float(np.mean(pred_unet) * 100.0)
+
+                u_inter = np.logical_and(pred_unet, gt_mask > 0.5).sum()
+                u_union = np.logical_or(pred_unet, gt_mask > 0.5).sum()
+                u_iou = float(u_inter / u_union) if u_union > 0 else (1.0 if gt_pct == 0 else 0.0)
+                unet_extent_errors.append(abs(unet_pct - gt_pct))
+                unet_ious.append(u_iou)
+
+        legacy_metrics = {
+            "status": "benchmarked_and_found_inadequate",
+            "model_type": "handpicked_hsv_heuristic",
+            "water_mask_mean_iou": round(float(np.mean(hsv_ious)), 4),
+            "water_extent_mae_pct": round(float(np.mean(hsv_extent_errors)), 2),
+            "road_passability_agreement": round(float(np.mean(hsv_road_agreements)), 4),
+            "samples_evaluated": len(hsv_ious),
+            "evaluation_note": "Hand-picked HSV color thresholds without gradient learning; worse than random road passability."
+        }
+
+        trained_metrics = {
+            "status": "active_trained_model",
+            "model_type": "FloodSegmentationUNet",
+            "water_mask_mean_iou": round(float(np.mean(unet_ious)), 4),
+            "water_extent_mae_pct": round(float(np.mean(unet_extent_errors)), 2),
+            "samples_evaluated": len(unet_ious),
+            "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
+        }
+
+        return legacy_metrics, trained_metrics
+
     def train_stage2_floodnet_unet(
         self, 
         data_dir: Path = Path("data/FloodNet"),
@@ -720,18 +837,18 @@ class Trainer:
         Replaces unlearned heuristic thresholding with true gradient descent optimization.
         """
         print(f"\n--- [TRAIN STAGE 2] FloodNet Water Extent Segmentation U-Net ---")
-        train_dataset = FloodNetSegmentationDataset(data_dir, split="train", max_samples=120)
-        val_dataset = FloodNetSegmentationDataset(data_dir, split="val", max_samples=40)
+        torch.manual_seed(42)
+        np.random.seed(42)
 
+        train_dataset = FloodNetSegmentationDataset(data_dir, split="train", max_samples=120, seed=42)
         if len(train_dataset) == 0:
             print("FloodNet dataset not found, skipping U-Net training.")
             return {"status": "skipped", "reason": "dataset not found"}
 
-        print(f"Dataset split: {len(train_dataset)} train masks, {len(val_dataset)} val masks")
+        print(f"Dataset split: {len(train_dataset)} train masks, 40 validation masks")
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-        model = FloodSegmentationUNet()
+        model = FloodSegmentationUNet(load_weights=False)
         criterion = nn.BCEWithLogitsLoss()
         optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
@@ -751,35 +868,8 @@ class Trainer:
             avg_loss = total_loss / max(1, batches)
             print(f"  [Flood U-Net] Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} ({time.time() - t_epoch:.1f}s)")
 
-        # Validation evaluation on held-out split
-        model.eval()
-        ious = []
-        extent_errors = []
-        with torch.no_grad():
-            for x, y in val_loader:
-                logits = model(x)
-                probs = torch.sigmoid(logits)
-                preds = (probs > 0.5).float()
-                for b in range(preds.shape[0]):
-                    pred_b = preds[b, 0].cpu().numpy()
-                    gt_b = y[b, 0].cpu().numpy()
-                    intersection = np.logical_and(pred_b > 0.5, gt_b > 0.5).sum()
-                    union = np.logical_or(pred_b > 0.5, gt_b > 0.5).sum()
-                    iou = float(intersection / union) if union > 0 else (1.0 if np.sum(gt_b) == 0 else 0.0)
-                    ious.append(iou)
-
-                    pred_pct = float(np.mean(pred_b) * 100.0)
-                    gt_pct = float(np.mean(gt_b) * 100.0)
-                    extent_errors.append(abs(pred_pct - gt_pct))
-
-        mean_iou = float(np.mean(ious)) if ious else 0.0
-        mean_mae = float(np.mean(extent_errors)) if extent_errors else 0.0
-
-        metrics = {
-            "val_water_mask_mean_iou": round(mean_iou, 4),
-            "val_water_extent_mae_pct": round(mean_mae, 2),
-            "num_val_samples": len(ious)
-        }
+        # Canonical evaluation on held-out split (40 samples, seed 42)
+        legacy_metrics, trained_metrics = self._evaluate_canonical_floodnet(model, data_dir, sample_size=40, seed=42)
 
         # Save weights
         weights_file = self.output_dir / "stage2_flood_unet_v1.pt"
@@ -793,7 +883,7 @@ class Trainer:
             architecture="FloodSegmentationUNet (Convolutional U-Net)",
             dataset_provenance=["FloodNet-Supervised_v1.0 (UAV Aerial Flood)", "Pixel Ground-Truth Masks"],
             weights_path=weights_file,
-            metrics=metrics,
+            metrics=trained_metrics,
             activate_immediately=True
         )
 
@@ -801,119 +891,39 @@ class Trainer:
             "status": "success",
             "model_id": registered_meta.model_id,
             "version": registered_meta.version,
-            "metrics": metrics,
+            "metrics": trained_metrics,
             "weights_path": str(weights_file)
         }
 
     def validate_floodnet(
         self, 
         data_dir: Path = Path("data/FloodNet"),
-        sample_size: int = 25
+        sample_size: int = 40
     ) -> Dict[str, Any]:
         """Evaluates both the legacy unlearned HSV heuristic baseline (benchmarked & found inadequate)
         and the newly trained FloodSegmentationUNet on real held-out FloodNet validation imagery.
+        Uses the single canonical evaluation function to ensure zero discrepancy between reports.
         """
         print(f"\n--- [BENCHMARK COMPARISON] FloodNet Heuristic Baseline vs. Trained U-Net ---")
         
-        target_dir = data_dir
-        if (data_dir / "FloodNet-Supervised_v1.0").exists():
-            target_dir = data_dir / "FloodNet-Supervised_v1.0"
-
-        val_org = target_dir / "val" / "val-org-img"
-        val_lbl = target_dir / "val" / "val-label-img"
-
-        if not val_org.exists():
-            print("FloodNet validation split not found.")
-            return {"status": "skipped", "reason": "dataset not found"}
-
-        # Instantiations
         unet_weights = self.output_dir / "stage2_flood_unet_v1.pt"
         unet_model = FloodSegmentationUNet(weights_path=str(unet_weights) if unet_weights.exists() else None)
-        head_trained = FloodSeverityHead(unet_weights_path=str(unet_weights) if unet_weights.exists() else None)
 
-        img_files = sorted(list(val_org.glob("*.jpg")))[:sample_size]
+        legacy_metrics, trained_metrics = self._evaluate_canonical_floodnet(
+            unet_model, data_dir, sample_size=sample_size, seed=42
+        )
 
-        # Tracking for HSV Heuristic
-        hsv_extent_errors = []
-        hsv_ious = []
-        hsv_road_agreements = []
+        if not legacy_metrics:
+            return {"status": "skipped", "reason": "dataset not found"}
 
-        # Tracking for Trained U-Net
-        unet_extent_errors = []
-        unet_ious = []
-
-        for img_p in img_files:
-            lbl_p = val_lbl / (img_p.stem + "_lab.png")
-            if not lbl_p.exists():
-                continue
-
-            img = cv2.imread(str(img_p))
-            mask = cv2.imread(str(lbl_p), cv2.IMREAD_GRAYSCALE)
-            if img is None or mask is None:
-                continue
-
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img_small = cv2.resize(img_rgb, (128, 128))
-            mask_small = cv2.resize(mask, (128, 128), interpolation=cv2.INTER_NEAREST)
-
-            # Ground truth water (class 5: water, class 3: road-flooded)
-            gt_water = ((mask_small == 5) | (mask_small == 3)).astype(np.uint8)
-            gt_pct = float(np.mean(gt_water) * 100.0)
-
-            # 1. Evaluate Legacy HSV Heuristic Baseline
-            hsv = cv2.cvtColor(img_small, cv2.COLOR_RGB2HSV)
-            mask_silt = cv2.inRange(hsv, np.array([10, 45, 35]), np.array([48, 255, 220]))
-            mask_blue = cv2.inRange(hsv, np.array([75, 40, 30]), np.array([140, 255, 255]))
-            pred_water_hsv = (cv2.bitwise_or(mask_silt, mask_blue) > 0).astype(np.uint8)
-            hsv_pct = float(np.mean(pred_water_hsv) * 100.0)
-
-            hsv_inter = np.logical_and(pred_water_hsv, gt_water).sum()
-            hsv_union = np.logical_or(pred_water_hsv, gt_water).sum()
-            hsv_iou = float(hsv_inter / hsv_union) if hsv_union > 0 else (1.0 if gt_pct == 0 else 0.0)
-
-            hsv_extent_errors.append(abs(hsv_pct - gt_pct))
-            hsv_ious.append(hsv_iou)
-
-            gt_road_blocked = np.sum(mask_small == 3) > 50
-            hsv_road_blocked = (hsv_pct > 30.0)
-            hsv_road_agreements.append(hsv_road_blocked == gt_road_blocked)
-
-            # 2. Evaluate Trained U-Net Model
-            if unet_model.has_weights:
-                pred_mask_unet, unet_pct = unet_model.segment_water(img_rgb)
-                pred_unet_small = cv2.resize(pred_mask_unet, (128, 128), interpolation=cv2.INTER_NEAREST) > 0
-                u_inter = np.logical_and(pred_unet_small, gt_water).sum()
-                u_union = np.logical_or(pred_unet_small, gt_water).sum()
-                u_iou = float(u_inter / u_union) if u_union > 0 else (1.0 if gt_pct == 0 else 0.0)
-                unet_extent_errors.append(abs(unet_pct - gt_pct))
-                unet_ious.append(u_iou)
-
-        legacy_hsv_metrics = {
-            "status": "benchmarked_and_found_inadequate",
-            "model_type": "handpicked_hsv_heuristic",
-            "water_extent_mae_pct": round(float(np.mean(hsv_extent_errors)), 2),
-            "water_mask_mean_iou": round(float(np.mean(hsv_ious)), 4),
-            "road_passability_agreement": round(float(np.mean(hsv_road_agreements)), 4),
-            "evaluation_note": "Brittle color thresholds without gradient learning; worse than random road passability (48%)."
-        }
-
-        trained_unet_metrics = {
-            "status": "active_trained_model",
-            "model_type": "FloodSegmentationUNet",
-            "water_extent_mae_pct": round(float(np.mean(unet_extent_errors)), 2) if unet_extent_errors else 11.04,
-            "water_mask_mean_iou": round(float(np.mean(unet_ious)), 4) if unet_ious else 0.3591,
-            "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
-        }
-
-        print(f"[BENCHMARK] Legacy HSV Heuristic: Mean IoU = {legacy_hsv_metrics['water_mask_mean_iou']}, Extent MAE = {legacy_hsv_metrics['water_extent_mae_pct']}%, Road Agr = {legacy_hsv_metrics['road_passability_agreement']*100:.1f}%")
-        if unet_extent_errors:
-            print(f"[BENCHMARK] Trained Flood U-Net:  Mean IoU = {trained_unet_metrics['water_mask_mean_iou']}, Extent MAE = {trained_unet_metrics['water_extent_mae_pct']}% (>3x IoU improvement)")
+        print(f"[BENCHMARK] Legacy HSV Heuristic: Mean IoU = {legacy_metrics['water_mask_mean_iou']}, Extent MAE = {legacy_metrics['water_extent_mae_pct']}%, Road Agr = {legacy_metrics['road_passability_agreement']*100:.1f}%")
+        print(f"[BENCHMARK] Trained Flood U-Net:  Mean IoU = {trained_metrics['water_mask_mean_iou']}, Extent MAE = {trained_metrics['water_extent_mae_pct']}%")
 
         return {
             "status": "success",
-            "legacy_heuristic_baseline": legacy_hsv_metrics,
-            "trained_unet_model": trained_unet_metrics,
-            "samples_evaluated": len(hsv_extent_errors)
+            "legacy_heuristic_baseline": legacy_metrics,
+            "trained_unet_model": trained_metrics,
+            "samples_evaluated": sample_size
         }
 
     def run_full_pipeline(self) -> Dict[str, Any]:
@@ -927,13 +937,13 @@ class Trainer:
         stage1_res = self.train_stage1_aider(epochs=3)
 
         # 2. Stage 2 on RescueNet (Structural Damage Head & Road Passability Classifier)
-        stage2_res = self.train_stage2_rescuenet(epochs=4)
+        stage2_res = self.train_stage2_rescuenet(epochs=8, lr=0.0005)
 
         # 3. Stage 2 on FloodNet (FloodSegmentationUNet with BCEWithLogitsLoss Backprop)
         stage2_flood_res = self.train_stage2_floodnet_unet(epochs=5)
 
-        # 4. Comparative FloodNet Benchmark Evaluation
-        floodnet_eval = self.validate_floodnet(sample_size=25)
+        # 4. Comparative FloodNet Benchmark Evaluation (Canonical 40-sample set)
+        floodnet_eval = self.validate_floodnet(sample_size=40)
 
         elapsed = time.time() - start_t
         report = {
@@ -960,13 +970,13 @@ class Trainer:
         print(f"  - Calibration ECE:      {stage1_res['metrics']['expected_calibration_error']:.4f}")
         print(f"Stage 2 Structural Damage & Road Accessibility (RescueNet):")
         if stage2_res.get("status") == "success":
-            print(f"  - 4-Tier Damage Acc:    {stage2_res['metrics']['val_damage_accuracy'] * 100:.2f}%")
+            print(f"  - 4-Tier Damage Acc:    {stage2_res['metrics']['val_damage_accuracy'] * 100:.2f}% (random=25.0%)")
             print(f"  - Ordinal MAE:          {stage2_res['metrics']['val_ordinal_mae']:.4f} grades")
-            print(f"  - Road Passability Acc: {stage2_res['metrics']['val_road_passability_accuracy'] * 100:.2f}% (over {stage2_res['metrics'].get('num_road_eval_scenes', 75)} RGB scenes)")
-        print(f"Stage 2 Flood Severity (FloodNet):")
+            print(f"  - Road Passability Acc: {stage2_res['metrics']['val_road_passability_accuracy'] * 100:.2f}% (Quality status: {stage2_res['metrics']['road_passability_status']})")
+        print(f"Stage 2 Flood Severity (FloodNet - Canonical Evaluation across 40 samples):")
         if stage2_flood_res.get("status") == "success":
-            print(f"  - Trained U-Net IoU:    {stage2_flood_res['metrics']['val_water_mask_mean_iou']:.4f}")
-            print(f"  - Water Extent MAE:     {stage2_flood_res['metrics']['val_water_extent_mae_pct']}%")
+            print(f"  - Trained U-Net IoU:    {stage2_flood_res['metrics']['water_mask_mean_iou']:.4f}")
+            print(f"  - Water Extent MAE:     {stage2_flood_res['metrics']['water_extent_mae_pct']}%")
         if floodnet_eval.get("status") == "success":
             leg = floodnet_eval["legacy_heuristic_baseline"]
             trn = floodnet_eval["trained_unet_model"]

@@ -1,15 +1,15 @@
 {
-  "timestamp": 1789390134.0491114,
-  "elapsed_seconds": 241.9,
+  "timestamp": 1789392730.7075765,
+  "elapsed_seconds": 802.99,
   "stage1_triage_aider": {
     "status": "success",
     "model_id": "stage1_mobilenetv3_triage_v1",
     "version": "1.1.0",
     "metrics": {
-      "val_accuracy": 0.8775,
-      "macro_f1": 0.8823,
-      "expected_calibration_error": 0.0206,
-      "max_calibration_error": 0.3612,
+      "val_accuracy": 0.8425,
+      "macro_f1": 0.8506,
+      "expected_calibration_error": 0.028,
+      "max_calibration_error": 0.6398,
       "num_val_samples": 400
     },
     "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt"
@@ -19,9 +19,10 @@
     "model_id": "stage2_structural_rescuenet_v1",
     "version": "1.0.0",
     "metrics": {
-      "val_damage_accuracy": 0.4062,
-      "val_ordinal_mae": 1.1062,
+      "val_damage_accuracy": 0.6,
+      "val_ordinal_mae": 0.5125,
       "val_road_passability_accuracy": 0.5,
+      "road_passability_status": "trained_but_ineffective",
       "num_val_crops": 160,
       "num_road_eval_scenes": 56
     },
@@ -32,9 +33,12 @@
     "model_id": "stage2_flood_unet_v1",
     "version": "1.0.0",
     "metrics": {
-      "val_water_mask_mean_iou": 0.2016,
-      "val_water_extent_mae_pct": 14.35,
-      "num_val_samples": 40
+      "status": "active_trained_model",
+      "model_type": "FloodSegmentationUNet",
+      "water_mask_mean_iou": 0.2342,
+      "water_extent_mae_pct": 7.75,
+      "samples_evaluated": 40,
+      "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
     },
     "weights_path": "models\\weights\\stage2_flood_unet_v1.pt"
   },
@@ -43,18 +47,20 @@
     "legacy_heuristic_baseline": {
       "status": "benchmarked_and_found_inadequate",
       "model_type": "handpicked_hsv_heuristic",
-      "water_extent_mae_pct": 33.72,
-      "water_mask_mean_iou": 0.1157,
-      "road_passability_agreement": 0.2,
-      "evaluation_note": "Brittle color thresholds without gradient learning; worse than random road passability (48%)."
+      "water_mask_mean_iou": 0.106,
+      "water_extent_mae_pct": 45.32,
+      "road_passability_agreement": 0.325,
+      "samples_evaluated": 40,
+      "evaluation_note": "Hand-picked HSV color thresholds without gradient learning; worse than random road passability."
     },
     "trained_unet_model": {
       "status": "active_trained_model",
       "model_type": "FloodSegmentationUNet",
-      "water_extent_mae_pct": 21.99,
-      "water_mask_mean_iou": 0.2225,
+      "water_mask_mean_iou": 0.2342,
+      "water_extent_mae_pct": 7.75,
+      "samples_evaluated": 40,
       "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
     },
-    "samples_evaluated": 25
+    "samples_evaluated": 40
   }
 }

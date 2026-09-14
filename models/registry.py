@@ -17,7 +17,7 @@ class ModelArtifactMeta(BaseModel):
     architecture: str
     dataset_provenance: List[str]
     sha256_checksum: str
-    metrics: Dict[str, float] = Field(default_factory=dict)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
     weights_path: str
     is_active: bool = False
     registered_at: float
@@ -76,8 +76,10 @@ class ModelRegistry:
         architecture: str,
         dataset_provenance: List[str],
         weights_path: Path,
-        metrics: Optional[Dict[str, float]] = None,
-        activate_immediately: bool = True
+        metrics: Optional[Dict[str, Any]] = None,
+        activate_immediately: bool = True,
+        status: str = "active",
+        notes: Optional[str] = None
     ) -> ModelArtifactMeta:
         checksum = self.compute_sha256(weights_path)
         meta = ModelArtifactMeta(
@@ -90,7 +92,9 @@ class ModelRegistry:
             metrics=metrics or {},
             weights_path=str(weights_path),
             is_active=activate_immediately,
-            registered_at=1726000000.0
+            registered_at=1726000000.0,
+            status=status if activate_immediately else ("trained_but_ineffective" if status == "active" else status),
+            notes=notes
         )
         self.models[model_id] = meta
         if activate_immediately:
@@ -99,6 +103,9 @@ class ModelRegistry:
                 if m.stage == stage and m.model_id != model_id:
                     m.is_active = False
             self.active_models[stage] = model_id
+        else:
+            if self.active_models.get(stage) == model_id:
+                del self.active_models[stage]
         self._save()
         return meta
 

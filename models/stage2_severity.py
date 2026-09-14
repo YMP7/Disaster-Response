@@ -27,7 +27,7 @@ class StructuralDamageHead(nn.Module):
 
     DEFAULT_WEIGHTS_PATH = Path("models/weights/stage2_structural_rescuenet_v1.pt")
 
-    def __init__(self, in_features: int = 128, weights_path: Optional[str] = None):
+    def __init__(self, in_features: int = 128, weights_path: Optional[str] = None, load_weights: bool = True):
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=3, padding=1),
@@ -46,17 +46,21 @@ class StructuralDamageHead(nn.Module):
             nn.Linear(32, 4)  # 4 ordinal classes
         )
 
-        target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
-        if target_path.exists():
-            try:
-                state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
-                self.load_state_dict(state_dict)
-            except Exception:
+        self.has_weights = False
+        if load_weights:
+            target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+            if target_path.exists():
                 try:
-                    state_dict = torch.load(target_path, map_location="cpu")
+                    state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
                     self.load_state_dict(state_dict)
+                    self.has_weights = True
                 except Exception:
-                    pass
+                    try:
+                        state_dict = torch.load(target_path, map_location="cpu")
+                        self.load_state_dict(state_dict)
+                        self.has_weights = True
+                    except Exception:
+                        pass
         self.eval()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -81,7 +85,7 @@ class FloodSegmentationUNet(nn.Module):
 
     DEFAULT_WEIGHTS_PATH = Path("models/weights/stage2_flood_unet_v1.pt")
 
-    def __init__(self, in_channels: int = 3, base_ch: int = 16, weights_path: Optional[str] = None):
+    def __init__(self, in_channels: int = 3, base_ch: int = 16, weights_path: Optional[str] = None, load_weights: bool = True):
         super().__init__()
         self.enc1 = nn.Sequential(
             nn.Conv2d(in_channels, base_ch, 3, padding=1),
@@ -126,20 +130,21 @@ class FloodSegmentationUNet(nn.Module):
         self.out_conv = nn.Conv2d(base_ch, 1, 1)
 
         # Automatic checkpoint resolution
-        target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
         self.has_weights = False
-        if target_path.exists():
-            try:
-                state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
-                self.load_state_dict(state_dict)
-                self.has_weights = True
-            except Exception:
+        if load_weights:
+            target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+            if target_path.exists():
                 try:
-                    state_dict = torch.load(target_path, map_location="cpu")
+                    state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
                     self.load_state_dict(state_dict)
                     self.has_weights = True
                 except Exception:
-                    pass
+                    try:
+                        state_dict = torch.load(target_path, map_location="cpu")
+                        self.load_state_dict(state_dict)
+                        self.has_weights = True
+                    except Exception:
+                        pass
         self.eval()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -181,7 +186,7 @@ class RoadPassabilityClassifier(nn.Module):
 
     DEFAULT_WEIGHTS_PATH = Path("models/weights/stage2_road_passability_v1.pt")
 
-    def __init__(self, in_channels: int = 3, base_filters: int = 16, weights_path: Optional[str] = None):
+    def __init__(self, in_channels: int = 3, base_filters: int = 16, weights_path: Optional[str] = None, load_weights: bool = True):
         super().__init__()
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, base_filters, 3, padding=1),
@@ -205,20 +210,21 @@ class RoadPassabilityClassifier(nn.Module):
             nn.Linear(32, 2)  # 0: Clear, 1: Blocked
         )
 
-        target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
         self.has_weights = False
-        if target_path.exists():
-            try:
-                state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
-                self.load_state_dict(state_dict)
-                self.has_weights = True
-            except Exception:
+        if load_weights:
+            target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+            if target_path.exists():
                 try:
-                    state_dict = torch.load(target_path, map_location="cpu")
+                    state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
                     self.load_state_dict(state_dict)
                     self.has_weights = True
                 except Exception:
-                    pass
+                    try:
+                        state_dict = torch.load(target_path, map_location="cpu")
+                        self.load_state_dict(state_dict)
+                        self.has_weights = True
+                    except Exception:
+                        pass
         self.eval()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -243,10 +249,11 @@ class RoadPassabilityClassifier(nn.Module):
 class FloodSeverityHead:
     """Estimates water extent, road blockages, and building inundation using trained U-Net."""
 
-    def __init__(self, unet_weights_path: Optional[str] = None):
+    def __init__(self, unet_weights_path: Optional[str] = None, use_road_classifier: bool = False):
         self.unet = FloodSegmentationUNet(weights_path=unet_weights_path)
         self.damage_classifier = StructuralDamageHead()
         self.road_classifier = RoadPassabilityClassifier()
+        self.use_road_classifier = use_road_classifier
 
     def analyze(self, image_rgb: np.ndarray) -> Dict[str, Any]:
         h, w, _ = image_rgb.shape
@@ -294,8 +301,10 @@ class FloodSeverityHead:
                     )
                 )
 
-        # Road passability evaluation: use trained road classifier if available, otherwise extent threshold
-        if self.road_classifier.has_weights:
+        # Road passability evaluation:
+        # If road classifier is explicitly enabled and trained, use it.
+        # Otherwise fallback to water extent threshold (since 50% chance model is deactivated).
+        if self.use_road_classifier and self.road_classifier.has_weights:
             road_status, road_conf = self.road_classifier.classify_passability(image_rgb)
         else:
             road_status = RoadPassability.ROAD_BLOCKED if water_extent_pct > 30.0 else RoadPassability.ROAD_CLEAR

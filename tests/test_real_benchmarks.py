@@ -109,7 +109,9 @@ class TestRealRescueNetBenchmark:
         assert crops_evaluated > 0, "Expected at least 1 building crop evaluated from RescueNet"
 
     def test_rescuenet_road_passability_classifier(self, rescuenet_path):
-        """Validates RoadPassabilityClassifier on real RescueNet post-hurricane RGB scenes."""
+        """Validates RoadPassabilityClassifier on real RescueNet post-hurricane RGB scenes
+        and asserts that ineffective chance-level models (<=0.60 accuracy) are rejected by the quality gate.
+        """
         val_org = rescuenet_path / "val" / "val-org-img"
         if not val_org.exists():
             pytest.skip("RescueNet validation split not found.")
@@ -117,13 +119,30 @@ class TestRealRescueNetBenchmark:
         model = RoadPassabilityClassifier()
         assert model.has_weights, "RoadPassabilityClassifier weights should be present after training"
 
-        images = list(val_org.glob("*.jpg"))[:3]
+        images = list(val_org.glob("*.jpg"))[:5]
         for img_p in images:
             img = cv2.imread(str(img_p))
             rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             status, conf = model.classify_passability(rgb)
             assert isinstance(status, RoadPassability)
             assert 0.0 <= conf <= 1.0
+
+        # Strict Quality Gate Assertion:
+        # A road passability model performing at chance level (<=0.60) MUST NOT be marked active
+        registry = ModelRegistry()
+        road_meta = registry.models.get("stage2_road_passability_v1")
+        if road_meta:
+            acc = road_meta.metrics.get("val_road_passability_accuracy", 0.0)
+            if acc <= 0.60:
+                assert road_meta.is_active is False, (
+                    f"Quality Gate Violation: Road passability model at chance level ({acc}) must NOT be active!"
+                )
+                assert road_meta.status == "trained_but_ineffective", (
+                    f"Expected status 'trained_but_ineffective', got '{road_meta.status}'"
+                )
+                assert "stage2_road_passability" not in registry.active_models, (
+                    "Ineffective road passability model must NOT be present in active_models!"
+                )
 
 
 class TestRealFloodNetBenchmark:
@@ -152,7 +171,7 @@ class TestRealFloodNetBenchmark:
             assert res["model_type"] == "trained_unet"
             assert "water_extent_percentage" in res
             assert 0.0 <= res["water_extent_percentage"] <= 100.0
-            assert "road_passability" in res
+            assert res["road_passability"] in ["road_clear", "road_blocked"]
             assert "buildings_detected" in res
 
     def test_flood_unet_trained_inference(self, floodnet_path):
@@ -177,15 +196,21 @@ class TestRealFloodNetBenchmark:
 
 class TestModelRegistryIntegrity:
     def test_active_models_and_honest_inadequate_record(self):
-        """Verifies active models in registry have valid checksums and honest legacy reporting."""
+        """Verifies active models in registry have valid checksums, honest legacy reporting,
+        and excludes ineffective chance-level models from active_models.
+        """
         registry = ModelRegistry()
         active = registry.active_models
 
         # Active models
         assert "stage1_triage" in active
         assert "stage2_severity" in active
-        assert "stage2_road_passability" in active
         assert "stage2_flood_segmentation" in active
+
+        # Road passability must NOT be in active_models if performing at chance level (50%)
+        assert "stage2_road_passability" not in active, (
+            "stage2_road_passability performs at 50% chance level and must NOT be active!"
+        )
 
         flood_model = registry.get_active_model("stage2_flood_segmentation")
         assert flood_model is not None
@@ -198,3 +223,32 @@ class TestModelRegistryIntegrity:
         legacy = registry.models["stage2_flood_heuristic_legacy"]
         assert legacy.is_active is False
         assert "benchmarked_and_found_inadequate" in str(getattr(legacy, "status", "")) or "inadequate" in str(getattr(legacy, "notes", ""))
+
+    def test_floodnet_canonical_consistency(self):
+        """Verifies FloodNet reports and registry entries use single canonical 40-sample evaluation.
+        Prevents cherry-picking of IoU and MAE across disparate runs.
+        """
+        import json
+        report_p = Path("models/benchmark_report.json")
+        if not report_p.exists():
+            pytest.skip("benchmark_report.json not generated yet.")
+
+        with open(report_p) as f:
+            rep = json.load(f)
+
+        s2_flood = rep.get("stage2_flood_unet", {}).get("metrics", {})
+        comp_flood = rep.get("floodnet_comparative_benchmark", {}).get("trained_unet_model", {})
+
+        if not s2_flood or not comp_flood:
+            pytest.skip("FloodNet metrics not populated in benchmark report yet.")
+
+        # Strict canonical equivalence: sample size, IoU, and MAE must be identical
+        assert s2_flood.get("samples_evaluated") == comp_flood.get("samples_evaluated") == 40, (
+            f"Canonical evaluation must be on 40 samples, got {s2_flood.get('samples_evaluated')} vs {comp_flood.get('samples_evaluated')}"
+        )
+        assert s2_flood.get("water_mask_mean_iou") == comp_flood.get("water_mask_mean_iou"), (
+            f"IoU mismatch between reports: {s2_flood.get('water_mask_mean_iou')} vs {comp_flood.get('water_mask_mean_iou')}"
+        )
+        assert s2_flood.get("water_extent_mae_pct") == comp_flood.get("water_extent_mae_pct"), (
+            f"MAE mismatch between reports: {s2_flood.get('water_extent_mae_pct')} vs {comp_flood.get('water_extent_mae_pct')}"
+        )
