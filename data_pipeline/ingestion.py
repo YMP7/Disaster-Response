@@ -23,8 +23,10 @@ class AIDERAdapter:
     CLASS_MAPPING = {
         "fire": DisasterClass.WILDFIRE,
         "flood": DisasterClass.FLOOD,
+        "flooded_areas": DisasterClass.FLOOD,
         "collapsed_building": DisasterClass.EARTHQUAKE_COLLAPSE,
-        "traffic_accident": DisasterClass.NORMAL_SCENE,  # or specialized accident class
+        "traffic_accident": DisasterClass.NORMAL_SCENE,
+        "traffic_incident": DisasterClass.NORMAL_SCENE,
         "normal": DisasterClass.NORMAL_SCENE
     }
 

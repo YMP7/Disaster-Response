@@ -1,0 +1,38 @@
+{
+  "timestamp": 1789388269.1121485,
+  "elapsed_seconds": 115.19,
+  "stage1_triage_aider": {
+    "status": "success",
+    "model_id": "stage1_mobilenetv3_triage_v1",
+    "version": "1.1.0",
+    "metrics": {
+      "val_accuracy": 0.855,
+      "macro_f1": 0.862,
+      "expected_calibration_error": 0.0344,
+      "max_calibration_error": 0.391,
+      "num_val_samples": 400
+    },
+    "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt"
+  },
+  "stage2_rescuenet": {
+    "status": "success",
+    "model_id": "stage2_structural_rescuenet_v1",
+    "version": "1.0.0",
+    "metrics": {
+      "val_damage_accuracy": 0.6312,
+      "val_ordinal_mae": 0.4938,
+      "val_road_passability_accuracy": 0.913,
+      "num_val_crops": 160
+    },
+    "weights_path": "models\\weights\\stage2_structural_rescuenet_v1.pt"
+  },
+  "stage2_floodnet": {
+    "status": "success",
+    "metrics": {
+      "water_extent_mae_pct": 25.66,
+      "water_mask_mean_iou": 0.1159,
+      "road_passability_agreement": 0.48,
+      "samples_evaluated": 25
+    }
+  }
+}
