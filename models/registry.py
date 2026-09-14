@@ -21,6 +21,8 @@ class ModelArtifactMeta(BaseModel):
     weights_path: str
     is_active: bool = False
     registered_at: float
+    status: str = "active"
+    notes: Optional[str] = None
 
 
 class ModelRegistry:

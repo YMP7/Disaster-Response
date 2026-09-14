@@ -15,10 +15,13 @@ Verifies all 8 deliverables:
 13. Extensibility Plugin Registration
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pytest
 import numpy as np
 import cv2
-from pathlib import Path
 
 # Core imports
 from data_pipeline.schema import (

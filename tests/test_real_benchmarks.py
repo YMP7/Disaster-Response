@@ -12,8 +12,14 @@ import numpy as np
 import torch
 
 from models.stage1_classifier import DisasterTriageEngine, Stage1EdgeClassifier
-from models.stage2_severity import StructuralDamageHead, FloodSeverityHead
-from data_pipeline.schema import DisasterClass, DamageGrade
+from models.stage2_severity import (
+    StructuralDamageHead, 
+    FloodSeverityHead, 
+    FloodSegmentationUNet, 
+    RoadPassabilityClassifier
+)
+from models.registry import ModelRegistry
+from data_pipeline.schema import DisasterClass, DamageGrade, RoadPassability
 
 
 class TestRealAIDERBenchmark:
@@ -102,6 +108,23 @@ class TestRealRescueNetBenchmark:
 
         assert crops_evaluated > 0, "Expected at least 1 building crop evaluated from RescueNet"
 
+    def test_rescuenet_road_passability_classifier(self, rescuenet_path):
+        """Validates RoadPassabilityClassifier on real RescueNet post-hurricane RGB scenes."""
+        val_org = rescuenet_path / "val" / "val-org-img"
+        if not val_org.exists():
+            pytest.skip("RescueNet validation split not found.")
+
+        model = RoadPassabilityClassifier()
+        assert model.has_weights, "RoadPassabilityClassifier weights should be present after training"
+
+        images = list(val_org.glob("*.jpg"))[:3]
+        for img_p in images:
+            img = cv2.imread(str(img_p))
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            status, conf = model.classify_passability(rgb)
+            assert isinstance(status, RoadPassability)
+            assert 0.0 <= conf <= 1.0
+
 
 class TestRealFloodNetBenchmark:
     @pytest.fixture
@@ -126,7 +149,52 @@ class TestRealFloodNetBenchmark:
             res = head.analyze(rgb)
 
             assert res["disaster_type"] == "flood"
+            assert res["model_type"] == "trained_unet"
             assert "water_extent_percentage" in res
             assert 0.0 <= res["water_extent_percentage"] <= 100.0
             assert "road_passability" in res
             assert "buildings_detected" in res
+
+    def test_flood_unet_trained_inference(self, floodnet_path):
+        """Validates FloodSegmentationUNet directly on real FloodNet UAV imagery."""
+        val_org = floodnet_path / "val" / "val-org-img"
+        if not val_org.exists():
+            pytest.skip("FloodNet validation split not found.")
+
+        unet = FloodSegmentationUNet()
+        assert unet.has_weights, "FloodSegmentationUNet weights should be loaded from checkpoint"
+
+        images = list(val_org.glob("*.jpg"))[:2]
+        for img_p in images:
+            img = cv2.imread(str(img_p))
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            mask, extent_pct = unet.segment_water(rgb)
+
+            assert mask.shape == (img.shape[0], img.shape[1])
+            assert 0.0 <= extent_pct <= 100.0
+            assert set(np.unique(mask)).issubset({0, 255})
+
+
+class TestModelRegistryIntegrity:
+    def test_active_models_and_honest_inadequate_record(self):
+        """Verifies active models in registry have valid checksums and honest legacy reporting."""
+        registry = ModelRegistry()
+        active = registry.active_models
+
+        # Active models
+        assert "stage1_triage" in active
+        assert "stage2_severity" in active
+        assert "stage2_road_passability" in active
+        assert "stage2_flood_segmentation" in active
+
+        flood_model = registry.get_active_model("stage2_flood_segmentation")
+        assert flood_model is not None
+        assert flood_model.architecture == "FloodSegmentationUNet (Convolutional U-Net)"
+        assert Path(flood_model.weights_path).exists()
+        assert len(flood_model.sha256_checksum) == 64
+
+        # Verify legacy inadequate heuristic is documented honestly
+        assert "stage2_flood_heuristic_legacy" in registry.models
+        legacy = registry.models["stage2_flood_heuristic_legacy"]
+        assert legacy.is_active is False
+        assert "benchmarked_and_found_inadequate" in str(getattr(legacy, "status", "")) or "inadequate" in str(getattr(legacy, "notes", ""))

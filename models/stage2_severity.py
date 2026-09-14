@@ -73,27 +73,198 @@ class StructuralDamageHead(nn.Module):
         return DamageGrade(grade_idx), float(probs[grade_idx])
 
 
-class FloodSeverityHead:
-    """Estimates water extent, road blockages, and building inundation (FloodNet style)."""
+class FloodSegmentationUNet(nn.Module):
+    """End-to-end 2D Convolutional U-Net for UAV aerial floodwater extent segmentation.
+    Trained with BCEWithLogitsLoss on real FloodNet pixel masks (classes 5 and 3).
+    Replaces brittle heuristic color thresholding with genuine spatial and spectral feature learning.
+    """
 
-    def __init__(self):
+    DEFAULT_WEIGHTS_PATH = Path("models/weights/stage2_flood_unet_v1.pt")
+
+    def __init__(self, in_channels: int = 3, base_ch: int = 16, weights_path: Optional[str] = None):
+        super().__init__()
+        self.enc1 = nn.Sequential(
+            nn.Conv2d(in_channels, base_ch, 3, padding=1),
+            nn.BatchNorm2d(base_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(base_ch, base_ch, 3, padding=1),
+            nn.BatchNorm2d(base_ch),
+            nn.ReLU(inplace=True)
+        )
+        self.pool1 = nn.MaxPool2d(2, 2)
+
+        self.enc2 = nn.Sequential(
+            nn.Conv2d(base_ch, base_ch * 2, 3, padding=1),
+            nn.BatchNorm2d(base_ch * 2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(base_ch * 2, base_ch * 2, 3, padding=1),
+            nn.BatchNorm2d(base_ch * 2),
+            nn.ReLU(inplace=True)
+        )
+        self.pool2 = nn.MaxPool2d(2, 2)
+
+        self.bottleneck = nn.Sequential(
+            nn.Conv2d(base_ch * 2, base_ch * 4, 3, padding=1),
+            nn.BatchNorm2d(base_ch * 4),
+            nn.ReLU(inplace=True)
+        )
+
+        self.up2 = nn.ConvTranspose2d(base_ch * 4, base_ch * 2, 2, stride=2)
+        self.dec2 = nn.Sequential(
+            nn.Conv2d(base_ch * 4, base_ch * 2, 3, padding=1),
+            nn.BatchNorm2d(base_ch * 2),
+            nn.ReLU(inplace=True)
+        )
+
+        self.up1 = nn.ConvTranspose2d(base_ch * 2, base_ch, 2, stride=2)
+        self.dec1 = nn.Sequential(
+            nn.Conv2d(base_ch * 2, base_ch, 3, padding=1),
+            nn.BatchNorm2d(base_ch),
+            nn.ReLU(inplace=True)
+        )
+
+        self.out_conv = nn.Conv2d(base_ch, 1, 1)
+
+        # Automatic checkpoint resolution
+        target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+        self.has_weights = False
+        if target_path.exists():
+            try:
+                state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
+                self.load_state_dict(state_dict)
+                self.has_weights = True
+            except Exception:
+                try:
+                    state_dict = torch.load(target_path, map_location="cpu")
+                    self.load_state_dict(state_dict)
+                    self.has_weights = True
+                except Exception:
+                    pass
+        self.eval()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        e1 = self.enc1(x)
+        e2 = self.enc2(self.pool1(e1))
+        b = self.bottleneck(self.pool2(e2))
+
+        d2 = self.up2(b)
+        d2 = self.dec2(torch.cat([d2, e2], dim=1))
+
+        d1 = self.up1(d2)
+        d1 = self.dec1(torch.cat([d1, e1], dim=1))
+
+        return self.out_conv(d1)
+
+    def segment_water(self, image_rgb: np.ndarray, target_size: Tuple[int, int] = (128, 128)) -> Tuple[np.ndarray, float]:
+        """Runs segmentation inference and returns full-res binary water mask and water extent percentage."""
+        h, w = image_rgb.shape[:2]
+        resized = cv2.resize(image_rgb, target_size)
+        tensor = torch.from_numpy(resized).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        tensor = (tensor - mean) / std
+
+        with torch.no_grad():
+            logits = self.forward(tensor)
+            probs = torch.sigmoid(logits).squeeze().numpy()
+            pred_mask = (probs > 0.5).astype(np.uint8)
+
+        water_extent_pct = round(float(np.mean(pred_mask) * 100.0), 2)
+        full_mask = cv2.resize(pred_mask * 255, (w, h), interpolation=cv2.INTER_NEAREST)
+        return full_mask, water_extent_pct
+
+
+class RoadPassabilityClassifier(nn.Module):
+    """Convolutional classifier predicting road accessibility from aerial RGB scenes.
+    Trained on RescueNet road images (Clear vs. Blocked by debris/water).
+    """
+
+    DEFAULT_WEIGHTS_PATH = Path("models/weights/stage2_road_passability_v1.pt")
+
+    def __init__(self, in_channels: int = 3, base_filters: int = 16, weights_path: Optional[str] = None):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(in_channels, base_filters, 3, padding=1),
+            nn.BatchNorm2d(base_filters),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(base_filters, base_filters * 2, 3, padding=1),
+            nn.BatchNorm2d(base_filters * 2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(base_filters * 2, base_filters * 4, 3, padding=1),
+            nn.BatchNorm2d(base_filters * 4),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((1, 1))
+        )
+        self.head = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(base_filters * 4, 32),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
+            nn.Linear(32, 2)  # 0: Clear, 1: Blocked
+        )
+
+        target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+        self.has_weights = False
+        if target_path.exists():
+            try:
+                state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
+                self.load_state_dict(state_dict)
+                self.has_weights = True
+            except Exception:
+                try:
+                    state_dict = torch.load(target_path, map_location="cpu")
+                    self.load_state_dict(state_dict)
+                    self.has_weights = True
+                except Exception:
+                    pass
+        self.eval()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        feat = self.features(x)
+        return self.head(feat)
+
+    def classify_passability(self, image_rgb: np.ndarray) -> Tuple[RoadPassability, float]:
+        resized = cv2.resize(image_rgb, (128, 128))
+        tensor = torch.from_numpy(resized).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        tensor = (tensor - mean) / std
+
+        with torch.no_grad():
+            logits = self.forward(tensor)
+            probs = F.softmax(logits, dim=-1).squeeze().numpy()
+        pred_idx = int(np.argmax(probs))
+        status = RoadPassability.ROAD_BLOCKED if pred_idx == 1 else RoadPassability.ROAD_CLEAR
+        return status, float(probs[pred_idx])
+
+
+class FloodSeverityHead:
+    """Estimates water extent, road blockages, and building inundation using trained U-Net."""
+
+    def __init__(self, unet_weights_path: Optional[str] = None):
+        self.unet = FloodSegmentationUNet(weights_path=unet_weights_path)
         self.damage_classifier = StructuralDamageHead()
+        self.road_classifier = RoadPassabilityClassifier()
 
     def analyze(self, image_rgb: np.ndarray) -> Dict[str, Any]:
         h, w, _ = image_rgb.shape
-        hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
 
-        # Calibrated floodwater detection grounded in FloodNet benchmark parameters:
-        # High-turbidity floodwater (Hue 10-48, Sat 45-255, Val 35-220) and open water (Hue 75-140)
-        mask_silt = cv2.inRange(hsv, np.array([10, 45, 35]), np.array([48, 255, 220]))
-        mask_blue = cv2.inRange(hsv, np.array([75, 40, 30]), np.array([140, 255, 255]))
-        water_mask = cv2.bitwise_or(mask_silt, mask_blue)
-        kernel = np.ones((3, 3), np.uint8)
-        water_mask = cv2.morphologyEx(water_mask, cv2.MORPH_OPEN, kernel)
-
-        water_pixels = int(cv2.countNonZero(water_mask))
-        total_pixels = h * w
-        water_extent_pct = round((water_pixels / total_pixels) * 100.0, 2)
+        if self.unet.has_weights:
+            water_mask, water_extent_pct = self.unet.segment_water(image_rgb)
+            model_type = "trained_unet"
+        else:
+            # Heuristic baseline fallback if U-Net weights not yet present
+            hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
+            mask_silt = cv2.inRange(hsv, np.array([10, 45, 35]), np.array([48, 255, 220]))
+            mask_blue = cv2.inRange(hsv, np.array([75, 40, 30]), np.array([140, 255, 255]))
+            water_mask = cv2.bitwise_or(mask_silt, mask_blue)
+            kernel = np.ones((3, 3), np.uint8)
+            water_mask = cv2.morphologyEx(water_mask, cv2.MORPH_OPEN, kernel)
+            water_pixels = int(cv2.countNonZero(water_mask))
+            water_extent_pct = round((water_pixels / (h * w)) * 100.0, 2)
+            model_type = "heuristic_fallback"
 
         # Detect building patches (high gradient variance regions above water level)
         gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
@@ -123,17 +294,20 @@ class FloodSeverityHead:
                     )
                 )
 
-        # RescueNet style road passability evaluation
-        road_status = RoadPassability.ROAD_BLOCKED if water_extent_pct > 30.0 else RoadPassability.ROAD_CLEAR
+        # Road passability evaluation: use trained road classifier if available, otherwise extent threshold
+        if self.road_classifier.has_weights:
+            road_status, road_conf = self.road_classifier.classify_passability(image_rgb)
+        else:
+            road_status = RoadPassability.ROAD_BLOCKED if water_extent_pct > 30.0 else RoadPassability.ROAD_CLEAR
 
         return {
             "disaster_type": "flood",
+            "model_type": model_type,
             "water_extent_percentage": water_extent_pct,
+            "road_passability": road_status.value,
             "buildings_detected": len(buildings),
             "buildings_flooded": sum(1 for b in buildings if b.is_flooded),
             "building_details": [b.model_dump() for b in buildings],
-            "road_passability": road_status.value,
-            "flood_depth_proxy": "high" if water_extent_pct > 50.0 else "medium"
         }
 
 

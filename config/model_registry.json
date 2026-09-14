@@ -2,7 +2,9 @@
   "version": "1.0.0",
   "active_models": {
     "stage1_triage": "stage1_mobilenetv3_triage_v1",
-    "stage2_severity": "stage2_structural_rescuenet_v1"
+    "stage2_severity": "stage2_structural_rescuenet_v1",
+    "stage2_road_passability": "stage2_road_passability_v1",
+    "stage2_flood_segmentation": "stage2_flood_unet_v1"
   },
   "models": {
     "stage1_mobilenetv3_triage_v1": {
@@ -14,12 +16,12 @@
         "AIDER (Real UAV Triage)",
         "ImageNet Pretrained Backbone"
       ],
-      "sha256_checksum": "9e7b474432273541c39fbfaa8fcf5fc0341481ad027a8cc74b6fd8463370845a",
+      "sha256_checksum": "9c75910bd6153fda4ecd7227d980e593c09d8a1b2259340611ca9c27d77ddf91",
       "metrics": {
-        "val_accuracy": 0.855,
-        "macro_f1": 0.862,
-        "expected_calibration_error": 0.0344,
-        "max_calibration_error": 0.391,
+        "val_accuracy": 0.8775,
+        "macro_f1": 0.8823,
+        "expected_calibration_error": 0.0206,
+        "max_calibration_error": 0.3612,
         "num_val_samples": 400.0
       },
       "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt",
@@ -35,15 +37,74 @@
         "RescueNet (UAV Hurricane Assessment)",
         "Ground-Truth Damage Masks"
       ],
-      "sha256_checksum": "0b20f857ff1d05a72d954b1f49f373ad2ea7aba5b1709c7ecae144e6ed481cf2",
+      "sha256_checksum": "b9b277499b5da208eca97f0ce6c54bd377a3c9329854aa2b788b924f8514cf56",
       "metrics": {
-        "val_damage_accuracy": 0.6312,
-        "val_ordinal_mae": 0.4938,
-        "val_road_passability_accuracy": 0.913,
-        "num_val_crops": 160.0
+        "val_damage_accuracy": 0.4062,
+        "val_ordinal_mae": 1.1062,
+        "val_road_passability_accuracy": 0.5,
+        "num_val_crops": 160.0,
+        "num_road_eval_scenes": 56.0
       },
       "weights_path": "models\\weights\\stage2_structural_rescuenet_v1.pt",
       "is_active": true,
+      "registered_at": 1726000000.0
+    },
+    "stage2_road_passability_v1": {
+      "model_id": "stage2_road_passability_v1",
+      "version": "1.0.0",
+      "stage": "stage2_road_passability",
+      "architecture": "RoadPassabilityClassifier (Conv3 + FC)",
+      "dataset_provenance": [
+        "RescueNet (UAV Post-Hurricane)",
+        "Road Accessibility Ground Truth"
+      ],
+      "sha256_checksum": "5e2e9d24365d44df1caa0eb1fb390631557e6e9fd40f3685fddcd7ccf58ba093",
+      "metrics": {
+        "val_road_passability_accuracy": 0.5,
+        "samples_evaluated": 56.0
+      },
+      "weights_path": "models\\weights\\stage2_road_passability_v1.pt",
+      "is_active": true,
+      "registered_at": 1726000000.0
+    },
+    "stage2_flood_unet_v1": {
+      "model_id": "stage2_flood_unet_v1",
+      "version": "1.0.0",
+      "stage": "stage2_flood_segmentation",
+      "architecture": "FloodSegmentationUNet (Convolutional U-Net)",
+      "dataset_provenance": [
+        "FloodNet-Supervised_v1.0 (UAV Aerial Flood)",
+        "Pixel Ground-Truth Masks"
+      ],
+      "sha256_checksum": "86e79e0a68aeac18679a2516db423e2a7b1fad66ffd0ed08c5a96bff16311f26",
+      "metrics": {
+        "val_water_mask_mean_iou": 0.2016,
+        "val_water_extent_mae_pct": 14.35,
+        "num_val_samples": 40.0
+      },
+      "weights_path": "models\\weights\\stage2_flood_unet_v1.pt",
+      "is_active": true,
+      "registered_at": 1726000000.0
+    },
+    "stage2_flood_heuristic_legacy": {
+      "model_id": "stage2_flood_heuristic_legacy",
+      "version": "0.1.0",
+      "stage": "stage2_flood_segmentation",
+      "architecture": "Hand-picked HSV Color Threshold Filter (cv2.inRange)",
+      "dataset_provenance": [
+        "Unlearned color-threshold heuristic rule"
+      ],
+      "sha256_checksum": "none_rule_based_heuristic",
+      "metrics": {
+        "water_mask_mean_iou": 0.1157,
+        "water_extent_mae_pct": 33.72,
+        "road_passability_agreement": 0.20,
+        "samples_evaluated": 25.0
+      },
+      "status": "benchmarked_and_found_inadequate",
+      "notes": "Hand-picked HSV silt/blue color ranges without gradient learning. Benchmarked on held-out FloodNet imagery and found inadequate (IoU ~0.116, road agreement 20-48% worse than coin flip). Superseded by stage2_flood_unet_v1.",
+      "weights_path": "none",
+      "is_active": false,
       "registered_at": 1726000000.0
     }
   }
