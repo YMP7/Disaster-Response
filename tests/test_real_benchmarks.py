@@ -252,3 +252,20 @@ class TestModelRegistryIntegrity:
         assert s2_flood.get("water_extent_mae_pct") == comp_flood.get("water_extent_mae_pct"), (
             f"MAE mismatch between reports: {s2_flood.get('water_extent_mae_pct')} vs {comp_flood.get('water_extent_mae_pct')}"
         )
+
+        # Cross-verify against model_registry.json as single source of truth
+        registry = ModelRegistry()
+        reg_unet = registry.models.get("stage2_flood_unet_v1")
+        assert reg_unet is not None, "stage2_flood_unet_v1 missing from registry"
+        assert reg_unet.metrics.get("samples_evaluated") == 40
+        assert reg_unet.metrics.get("water_mask_mean_iou") == s2_flood.get("water_mask_mean_iou")
+        assert reg_unet.metrics.get("water_extent_mae_pct") == s2_flood.get("water_extent_mae_pct")
+
+        # Verify deprecated legacy heuristic baseline is also canonicalized consistently across surfaces
+        legacy_bench = rep.get("floodnet_comparative_benchmark", {}).get("legacy_heuristic_baseline", {})
+        reg_legacy = registry.models.get("stage2_flood_heuristic_legacy")
+        assert reg_legacy is not None, "stage2_flood_heuristic_legacy missing from registry"
+        assert reg_legacy.metrics.get("samples_evaluated") == legacy_bench.get("samples_evaluated") == 40
+        assert reg_legacy.metrics.get("water_mask_mean_iou") == legacy_bench.get("water_mask_mean_iou") == 0.106
+        assert reg_legacy.metrics.get("water_extent_mae_pct") == legacy_bench.get("water_extent_mae_pct") == 45.32
+

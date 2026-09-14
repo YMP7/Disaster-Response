@@ -104,16 +104,16 @@
       ],
       "sha256_checksum": "none_rule_based_heuristic",
       "metrics": {
-        "water_mask_mean_iou": 0.1157,
-        "water_extent_mae_pct": 33.72,
-        "road_passability_agreement": 0.2,
-        "samples_evaluated": 25.0
+        "water_mask_mean_iou": 0.106,
+        "water_extent_mae_pct": 45.32,
+        "road_passability_agreement": 0.325,
+        "samples_evaluated": 40
       },
       "weights_path": "none",
       "is_active": false,
       "registered_at": 1726000000.0,
       "status": "benchmarked_and_found_inadequate",
-      "notes": "Hand-picked HSV silt/blue color ranges without gradient learning. Benchmarked on held-out FloodNet imagery and found inadequate (IoU ~0.116, road agreement 20-48% worse than coin flip). Superseded by stage2_flood_unet_v1."
+      "notes": "Hand-picked HSV silt/blue color ranges without gradient learning. Benchmarked on held-out FloodNet imagery (canonical 40 samples) and found inadequate (IoU 0.106, MAE 45.32%, road agreement 32.5% - worse than coin flip). Superseded by stage2_flood_unet_v1."
     }
   }
 }
