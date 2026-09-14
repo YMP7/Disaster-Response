@@ -242,9 +242,11 @@ class TestModelRegistryIntegrity:
         if not s2_flood or not comp_flood:
             pytest.skip("FloodNet metrics not populated in benchmark report yet.")
 
-        # Strict canonical equivalence: sample size, IoU, and MAE must be identical
-        assert s2_flood.get("samples_evaluated") == comp_flood.get("samples_evaluated") == 40, (
-            f"Canonical evaluation must be on 40 samples, got {s2_flood.get('samples_evaluated')} vs {comp_flood.get('samples_evaluated')}"
+        # Strict canonical equivalence: sample size, IoU, and MAE must be identical across surfaces
+        eval_samples = s2_flood.get("samples_evaluated")
+        assert eval_samples is not None and eval_samples > 0, "samples_evaluated must be positive"
+        assert eval_samples == comp_flood.get("samples_evaluated"), (
+            f"Canonical evaluation must use matching sample count, got {eval_samples} vs {comp_flood.get('samples_evaluated')}"
         )
         assert s2_flood.get("water_mask_mean_iou") == comp_flood.get("water_mask_mean_iou"), (
             f"IoU mismatch between reports: {s2_flood.get('water_mask_mean_iou')} vs {comp_flood.get('water_mask_mean_iou')}"
@@ -255,17 +257,29 @@ class TestModelRegistryIntegrity:
 
         # Cross-verify against model_registry.json as single source of truth
         registry = ModelRegistry()
-        reg_unet = registry.models.get("stage2_flood_unet_v1")
-        assert reg_unet is not None, "stage2_flood_unet_v1 missing from registry"
-        assert reg_unet.metrics.get("samples_evaluated") == 40
-        assert reg_unet.metrics.get("water_mask_mean_iou") == s2_flood.get("water_mask_mean_iou")
-        assert reg_unet.metrics.get("water_extent_mae_pct") == s2_flood.get("water_extent_mae_pct")
+        reg_unet = registry.get_active_model("stage2_flood_segmentation") or registry.models.get("stage2_flood_unet_v1")
+        assert reg_unet is not None, "active flood segmentation model missing from registry"
+        assert reg_unet.metrics.get("samples_evaluated") == eval_samples, (
+            f"Registry sample count mismatch: {reg_unet.metrics.get('samples_evaluated')} vs {eval_samples}"
+        )
+        assert reg_unet.metrics.get("water_mask_mean_iou") == s2_flood.get("water_mask_mean_iou"), (
+            f"Registry IoU mismatch: {reg_unet.metrics.get('water_mask_mean_iou')} vs {s2_flood.get('water_mask_mean_iou')}"
+        )
+        assert reg_unet.metrics.get("water_extent_mae_pct") == s2_flood.get("water_extent_mae_pct"), (
+            f"Registry MAE mismatch: {reg_unet.metrics.get('water_extent_mae_pct')} vs {s2_flood.get('water_extent_mae_pct')}"
+        )
 
         # Verify deprecated legacy heuristic baseline is also canonicalized consistently across surfaces
         legacy_bench = rep.get("floodnet_comparative_benchmark", {}).get("legacy_heuristic_baseline", {})
         reg_legacy = registry.models.get("stage2_flood_heuristic_legacy")
         assert reg_legacy is not None, "stage2_flood_heuristic_legacy missing from registry"
-        assert reg_legacy.metrics.get("samples_evaluated") == legacy_bench.get("samples_evaluated") == 40
-        assert reg_legacy.metrics.get("water_mask_mean_iou") == legacy_bench.get("water_mask_mean_iou") == 0.106
-        assert reg_legacy.metrics.get("water_extent_mae_pct") == legacy_bench.get("water_extent_mae_pct") == 45.32
+        assert reg_legacy.metrics.get("samples_evaluated") == legacy_bench.get("samples_evaluated"), (
+            f"Legacy sample count mismatch: {reg_legacy.metrics.get('samples_evaluated')} vs {legacy_bench.get('samples_evaluated')}"
+        )
+        assert reg_legacy.metrics.get("water_mask_mean_iou") == legacy_bench.get("water_mask_mean_iou"), (
+            f"Legacy IoU mismatch: {reg_legacy.metrics.get('water_mask_mean_iou')} vs {legacy_bench.get('water_mask_mean_iou')}"
+        )
+        assert reg_legacy.metrics.get("water_extent_mae_pct") == legacy_bench.get("water_extent_mae_pct"), (
+            f"Legacy MAE mismatch: {reg_legacy.metrics.get('water_extent_mae_pct')} vs {legacy_bench.get('water_extent_mae_pct')}"
+        )
 

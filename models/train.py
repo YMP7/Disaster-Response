@@ -63,7 +63,7 @@ class RealAIDERDataset(Dataset):
         base_dir: Path, 
         split: str = "train", 
         split_ratio: float = 0.80, 
-        max_per_class: int = 400, 
+        max_per_class: Optional[int] = 400, 
         seed: int = 42
     ):
         self.samples: List[Tuple[Path, int]] = []
@@ -86,7 +86,8 @@ class RealAIDERDataset(Dataset):
                 continue
 
             rng.shuffle(images)
-            images = images[:max_per_class]
+            if max_per_class is not None and max_per_class > 0:
+                images = images[:max_per_class]
 
             split_idx = int(len(images) * split_ratio)
             selected = images[:split_idx] if split == "train" else images[split_idx:]
@@ -134,7 +135,7 @@ class RescueNetDamageDataset(Dataset):
         self, 
         base_dir: Path, 
         split: str = "train", 
-        max_samples_per_class: int = 150,
+        max_samples_per_class: Optional[int] = 150,
         seed: int = 42
     ):
         self.crops: List[Tuple[torch.Tensor, int]] = []
@@ -156,8 +157,9 @@ class RescueNetDamageDataset(Dataset):
         counts = {0: 0, 1: 0, 2: 0, 3: 0}
 
         for mask_p in mask_files:
-            if all(counts[c] >= max_samples_per_class for c in counts):
-                break
+            if max_samples_per_class is not None and max_samples_per_class > 0:
+                if all(counts[c] >= max_samples_per_class for c in counts):
+                    break
 
             img_p = org_dir / (mask_p.stem.replace("_lab", "") + ".jpg")
             if not img_p.exists():
@@ -181,8 +183,9 @@ class RescueNetDamageDataset(Dataset):
 
             for b_cls in b_classes:
                 grade = self.CLASS_TO_GRADE[b_cls]
-                if counts[grade] >= max_samples_per_class:
-                    continue
+                if max_samples_per_class is not None and max_samples_per_class > 0:
+                    if counts[grade] >= max_samples_per_class:
+                        continue
 
                 bin_m = (small_mask == b_cls).astype(np.uint8)
                 num_labels, _, stats, _ = cv2.connectedComponentsWithStats(bin_m)
@@ -205,8 +208,9 @@ class RescueNetDamageDataset(Dataset):
 
                     self.crops.append((tensor, grade))
                     counts[grade] += 1
-                    if counts[grade] >= max_samples_per_class:
-                        break
+                    if max_samples_per_class is not None and max_samples_per_class > 0:
+                        if counts[grade] >= max_samples_per_class:
+                            break
 
     def __len__(self) -> int:
         return len(self.crops)
@@ -234,7 +238,7 @@ class RescueNetRoadDataset(Dataset):
         self, 
         base_dir: Path, 
         split: str = "train", 
-        max_samples: int = 150, 
+        max_samples: Optional[int] = 150, 
         seed: int = 42
     ):
         self.samples: List[Tuple[torch.Tensor, int]] = []
@@ -248,7 +252,8 @@ class RescueNetRoadDataset(Dataset):
         mask_files = sorted(list(lbl_dir.glob("*.png")))
         rng = np.random.RandomState(seed)
         rng.shuffle(mask_files)
-        mask_files = mask_files[:max_samples]
+        if max_samples is not None and max_samples > 0:
+            mask_files = mask_files[:max_samples]
 
         mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
@@ -304,7 +309,7 @@ class FloodNetSegmentationDataset(Dataset):
         self, 
         base_dir: Path, 
         split: str = "train", 
-        max_samples: int = 120, 
+        max_samples: Optional[int] = 120, 
         seed: int = 42
     ):
         self.data: List[Tuple[torch.Tensor, torch.Tensor]] = []
@@ -318,7 +323,8 @@ class FloodNetSegmentationDataset(Dataset):
         img_files = sorted(list(org_dir.glob("*.jpg")))
         rng = np.random.RandomState(seed)
         rng.shuffle(img_files)
-        img_files = img_files[:max_samples]
+        if max_samples is not None and max_samples > 0:
+            img_files = img_files[:max_samples]
 
         mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
@@ -387,44 +393,87 @@ class SyntheticDisasterDataset(Dataset):
 class Trainer:
     """Orchestrates model training, evaluation, and artifact registration."""
 
-    def __init__(self, output_dir: Path = Path("models/weights")):
-        self.output_dir = output_dir
+    def __init__(
+        self, 
+        output_dir: Path = Path("models/weights"),
+        device: str = "auto",
+        full_dataset: bool = False,
+        batch_size: int = 32,
+        force_cpu_full: bool = False
+    ):
+        self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.registry = ModelRegistry()
+        self.full_dataset = full_dataset
+        self.batch_size = batch_size
+        self.force_cpu_full = force_cpu_full
+
+        # Resolve device
+        if device == "auto":
+            if torch.cuda.is_available():
+                self.device = torch.device("cuda")
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                self.device = torch.device("mps")
+            else:
+                self.device = torch.device("cpu")
+        else:
+            self.device = torch.device(device)
+
+        # CPU Safety Guard: Prevent accidental multi-hour full training on CPU
+        if self.full_dataset and self.device.type == "cpu" and not self.force_cpu_full:
+            raise RuntimeError(
+                "\n" + "!" * 80 + "\n"
+                "[SAFETY GUARD] --full-dataset requested on CPU without --force-cpu-full.\n"
+                "Full training across ~26,000 samples on CPU is estimated to take 6-10+ hours.\n"
+                "To proceed anyway on CPU, pass --force-cpu-full.\n"
+                "Otherwise, run on a GPU with --device cuda (e.g. in Google Colab) or\n"
+                "run without --full-dataset for rapid local execution.\n"
+                + "!" * 80
+            )
+
+        print(f"[Trainer] Device: {self.device} | Full Dataset: {self.full_dataset} | Batch Size: {self.batch_size}")
 
     def train_stage1_aider(
         self, 
         data_dir: Path = Path("data/AIDER"),
         epochs: int = 3, 
-        batch_size: int = 32, 
+        batch_size: Optional[int] = None, 
         lr: float = 0.001
     ) -> Dict[str, Any]:
         """Trains Stage 1 MobileNetV3 Triage Classifier on real AIDER aerial imagery."""
+        bs = batch_size if batch_size is not None else self.batch_size
         print(f"\n--- [TRAIN STAGE 1] AIDER Aerial Scene Triage ---")
         
+        max_per_class = None if self.full_dataset else 400
+        val_max_per_class = None if self.full_dataset else 400
+        version = "2.0.0" if self.full_dataset else "1.1.0"
+        model_id = "stage1_mobilenetv3_triage_v2" if self.full_dataset else "stage1_mobilenetv3_triage_v1"
+        weights_name = "stage1_mobilenetv3_india_v2.pt" if self.full_dataset else "stage1_mobilenetv3_india_v1.pt"
+
         if data_dir.exists() and any(data_dir.rglob("*.jpg")):
-            print(f"Loading real AIDER dataset from: {data_dir}")
-            train_dataset = RealAIDERDataset(data_dir, split="train", max_per_class=400)
-            val_dataset = RealAIDERDataset(data_dir, split="val", max_per_class=400)
-            provenance = ["AIDER (Real UAV Triage)", "ImageNet Pretrained Backbone"]
+            print(f"Loading real AIDER dataset from: {data_dir} (full={self.full_dataset})")
+            train_dataset = RealAIDERDataset(data_dir, split="train", max_per_class=max_per_class)
+            val_dataset = RealAIDERDataset(data_dir, split="val", max_per_class=val_max_per_class)
+            sample_desc = f"Full Dataset, {len(train_dataset)+len(val_dataset)} samples" if self.full_dataset else f"{len(train_dataset)+len(val_dataset)} samples subset"
+            provenance = [f"AIDER ({sample_desc})", "ImageNet Pretrained Backbone"]
         else:
             print("AIDER dataset not found on disk, falling back to Synthetic Generator.")
             train_dataset = SyntheticDisasterDataset(size=64)
             val_dataset = SyntheticDisasterDataset(size=32)
             provenance = ["SyntheticAerialGenerator"]
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=bs, shuffle=False)
 
         print(f"Dataset split: {len(train_dataset)} train samples, {len(val_dataset)} val samples")
 
-        model = Stage1EdgeClassifier(pretrained=True)
+        model = Stage1EdgeClassifier(pretrained=True).to(self.device)
 
         # Freeze feature backbone for fast, robust transfer learning on edge
         for param in model.features.parameters():
             param.requires_grad = False
 
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss().to(self.device)
         optimizer = optim.AdamW(model.classifier.parameters(), lr=lr, weight_decay=1e-4)
 
         for epoch in range(epochs):
@@ -433,6 +482,8 @@ class Trainer:
             batches = 0
             t_epoch = time.time()
             for x, y in train_loader:
+                x = x.to(self.device)
+                y = y.to(self.device)
                 optimizer.zero_grad()
                 out = model(x)
                 loss = criterion(out, y)
@@ -451,11 +502,12 @@ class Trainer:
 
         with torch.no_grad():
             for x, y in val_loader:
+                x = x.to(self.device)
                 out = model(x)
                 probs = torch.softmax(out, dim=-1)
                 confs, preds = torch.max(probs, dim=-1)
                 all_preds.extend(preds.cpu().numpy())
-                all_labels.extend(y.cpu().numpy())
+                all_labels.extend(y.numpy() if isinstance(y, torch.Tensor) else y)
                 all_confs.extend(confs.cpu().numpy())
 
         preds_arr = np.array(all_preds)
@@ -489,14 +541,14 @@ class Trainer:
         }
 
         # Save weights
-        weights_file = self.output_dir / "stage1_mobilenetv3_india_v1.pt"
+        weights_file = self.output_dir / weights_name
         torch.save(model.state_dict(), weights_file)
         print(f"[OK] Saved Stage 1 weights: {weights_file}")
 
         # Register artifact
         registered_meta = self.registry.register_model(
-            model_id="stage1_mobilenetv3_triage_v1",
-            version="1.1.0",
+            model_id=model_id,
+            version=version,
             stage="stage1_triage",
             architecture="MobileNetV3-Small",
             dataset_provenance=provenance,
@@ -517,22 +569,32 @@ class Trainer:
         self, 
         data_dir: Path = Path("data/RescueNet"),
         epochs: int = 8, 
-        batch_size: int = 32, 
+        batch_size: Optional[int] = None, 
         lr: float = 0.0005
     ) -> Dict[str, Any]:
         """Trains Stage 2 StructuralDamageHead on RescueNet post-disaster building crops,
         and trains RoadPassabilityClassifier on real RescueNet RGB road scenes.
         Enforces clean model initialization, fixed seeds, and deployment quality gates.
         """
+        bs = batch_size if batch_size is not None else self.batch_size
         print(f"\n--- [TRAIN STAGE 2] RescueNet Structural Damage & Road Accessibility ---")
         torch.manual_seed(42)
         np.random.seed(42)
+
+        max_crops = None if self.full_dataset else 120
+        val_crops = None if self.full_dataset else 40
+        road_max = None if self.full_dataset else 150
+        road_val = None if self.full_dataset else 75
+        version = "2.0.0" if self.full_dataset else "1.0.0"
+        model_id = "stage2_structural_rescuenet_v2" if self.full_dataset else "stage2_structural_rescuenet_v1"
+        weights_name = "stage2_structural_rescuenet_v2.pt" if self.full_dataset else "stage2_structural_rescuenet_v1.pt"
         
         if data_dir.exists() and any(data_dir.rglob("*.png")):
-            print(f"Extracting building crops from RescueNet: {data_dir}")
-            train_dataset = RescueNetDamageDataset(data_dir, split="train", max_samples_per_class=120, seed=42)
-            val_dataset = RescueNetDamageDataset(data_dir, split="val", max_samples_per_class=40, seed=42)
-            provenance = ["RescueNet (UAV Hurricane Assessment)", "Ground-Truth Damage Masks"]
+            print(f"Extracting building crops from RescueNet: {data_dir} (full={self.full_dataset})")
+            train_dataset = RescueNetDamageDataset(data_dir, split="train", max_samples_per_class=max_crops, seed=42)
+            val_dataset = RescueNetDamageDataset(data_dir, split="val", max_samples_per_class=val_crops, seed=42)
+            crops_desc = f"Full Dataset ({len(train_dataset)} crops)" if self.full_dataset else f"{len(train_dataset)} crops subset"
+            provenance = [f"RescueNet ({crops_desc})", "Ground-Truth Damage Masks"]
         else:
             print("RescueNet dataset not found, skipping training.")
             return {"status": "skipped", "reason": "dataset not found"}
@@ -541,12 +603,12 @@ class Trainer:
         if len(train_dataset) == 0:
             return {"status": "skipped", "reason": "no valid crops extracted"}
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=bs, shuffle=False)
 
         # Force fresh weights initialization (load_weights=False) to prevent checkpoint contamination
-        model = StructuralDamageHead(load_weights=False)
-        criterion = nn.CrossEntropyLoss()
+        model = StructuralDamageHead(load_weights=False).to(self.device)
+        criterion = nn.CrossEntropyLoss().to(self.device)
         optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
         for epoch in range(epochs):
@@ -555,6 +617,8 @@ class Trainer:
             batches = 0
             t_epoch = time.time()
             for x, y in train_loader:
+                x = x.to(self.device)
+                y = y.to(self.device)
                 optimizer.zero_grad()
                 out = model(x)
                 loss = criterion(out, y)
@@ -571,10 +635,11 @@ class Trainer:
         all_labels = []
         with torch.no_grad():
             for x, y in val_loader:
+                x = x.to(self.device)
                 out = model(x)
                 preds = torch.argmax(out, dim=-1)
                 all_preds.extend(preds.cpu().numpy())
-                all_labels.extend(y.cpu().numpy())
+                all_labels.extend(y.numpy() if isinstance(y, torch.Tensor) else y)
 
         preds_arr = np.array(all_preds)
         labels_arr = np.array(all_labels)
@@ -583,13 +648,13 @@ class Trainer:
         ordinal_mae = float(np.mean(np.abs(preds_arr - labels_arr))) if len(labels_arr) > 0 else 0.0
 
         # Save structural damage head weights
-        weights_file = self.output_dir / "stage2_structural_rescuenet_v1.pt"
+        weights_file = self.output_dir / weights_name
         torch.save(model.state_dict(), weights_file)
         print(f"[OK] Saved Stage 2 Structural weights: {weights_file}")
 
         registered_meta = self.registry.register_model(
-            model_id="stage2_structural_rescuenet_v1",
-            version="1.0.0",
+            model_id=model_id,
+            version=version,
             stage="stage2_severity",
             architecture="StructuralDamageHead (4-Tier Ordinal CNN)",
             dataset_provenance=provenance,
@@ -603,14 +668,19 @@ class Trainer:
         )
 
         # Train RoadPassabilityClassifier on real RescueNet RGB scenes
-        print(f"Training RoadPassabilityClassifier on real RescueNet RGB road scenes...")
-        road_train_ds = RescueNetRoadDataset(data_dir, split="train", max_samples=150, seed=42)
-        road_model = RoadPassabilityClassifier(load_weights=False)
+        print(f"Training RoadPassabilityClassifier on real RescueNet RGB road scenes (full={self.full_dataset})...")
+        road_train_ds = RescueNetRoadDataset(data_dir, split="train", max_samples=road_max, seed=42)
+        road_model = RoadPassabilityClassifier(load_weights=False).to(self.device)
         road_acc = 0.50
         road_samples = 0
+        road_version = "2.0.0" if self.full_dataset else "1.0.0"
+        road_model_id = "stage2_road_passability_v2" if self.full_dataset else "stage2_road_passability_v1"
+        road_weights_name = "stage2_road_passability_v2.pt" if self.full_dataset else "stage2_road_passability_v1.pt"
+        road_provenance = [f"RescueNet ({'Full Dataset Scenes' if self.full_dataset else '150 scenes subset'})", "Road Accessibility Ground Truth"]
+
         if len(road_train_ds) > 0:
-            road_loader = DataLoader(road_train_ds, batch_size=16, shuffle=True)
-            road_criterion = nn.CrossEntropyLoss()
+            road_loader = DataLoader(road_train_ds, batch_size=min(bs, 16), shuffle=True)
+            road_criterion = nn.CrossEntropyLoss().to(self.device)
             road_optimizer = optim.AdamW(road_model.parameters(), lr=1e-3, weight_decay=1e-4)
             for epoch in range(4):
                 road_model.train()
@@ -618,6 +688,8 @@ class Trainer:
                 b_cnt = 0
                 t_ep = time.time()
                 for rx, ry in road_loader:
+                    rx = rx.to(self.device)
+                    ry = ry.to(self.device)
                     road_optimizer.zero_grad()
                     rout = road_model(rx)
                     rloss = road_criterion(rout, ry)
@@ -628,13 +700,13 @@ class Trainer:
                 avg_r_loss = t_loss / max(1, b_cnt)
                 print(f"  [Road Classifier] Epoch {epoch+1}/4 - Loss: {avg_r_loss:.4f} ({time.time() - t_ep:.1f}s)")
 
-            road_weights_file = self.output_dir / "stage2_road_passability_v1.pt"
+            road_weights_file = self.output_dir / road_weights_name
             torch.save(road_model.state_dict(), road_weights_file)
             print(f"[OK] Saved Stage 2 Road Passability weights: {road_weights_file}")
             road_model.has_weights = True
 
             # Validate Road Passability with matching ground-truth and prediction criteria
-            road_acc, road_samples = self._validate_rescuenet_roads(data_dir, road_model=road_model, num_samples=75)
+            road_acc, road_samples = self._validate_rescuenet_roads(data_dir, road_model=road_model, num_samples=road_val)
 
             # QUALITY GATE: Model must outperform naive chance level (0.50) to be marked active
             road_is_active = road_acc > 0.60
@@ -644,18 +716,17 @@ class Trainer:
                 print(f"                       Marking as '{road_status}' and DEACTIVATING in model registry.")
 
             self.registry.register_model(
-                model_id="stage2_road_passability_v1",
-                version="1.0.0",
+                model_id=road_model_id,
+                version=road_version,
                 stage="stage2_road_passability",
                 architecture="RoadPassabilityClassifier (Conv3 + FC)",
-                dataset_provenance=["RescueNet (UAV Post-Hurricane)", "Road Accessibility Ground Truth"],
+                dataset_provenance=road_provenance,
                 weights_path=road_weights_file,
                 metrics={"val_road_passability_accuracy": round(road_acc, 4), "samples_evaluated": road_samples},
                 activate_immediately=road_is_active
             )
-            # Ensure inactive status and explanatory note are recorded in registry
             if not road_is_active:
-                m = self.registry.models.get("stage2_road_passability_v1")
+                m = self.registry.models.get(road_model_id)
                 if m:
                     m.status = road_status
                     m.is_active = False
@@ -685,7 +756,7 @@ class Trainer:
         self, 
         base_dir: Path, 
         road_model: Optional[RoadPassabilityClassifier] = None, 
-        num_samples: int = 75
+        num_samples: Optional[int] = 75
     ) -> Tuple[float, int]:
         """Validates Road-Clear vs Road-Blocked detection on RescueNet held-out RGB validation imagery.
         Eliminates ground-truth/prediction semantic mismatch:
@@ -700,8 +771,11 @@ class Trainer:
 
         if road_model is None:
             road_model = RoadPassabilityClassifier()
+        road_model = road_model.to(self.device)
 
-        masks = sorted(list(val_lbl.glob("*.png")))[:num_samples]
+        masks = sorted(list(val_lbl.glob("*.png")))
+        if num_samples is not None and num_samples > 0:
+            masks = masks[:num_samples]
         correct = 0
         evaluated = 0
 
@@ -761,6 +835,7 @@ class Trainer:
         unet_ious = []
 
         val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+        unet_model = unet_model.to(self.device)
         unet_model.eval()
 
         mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
@@ -771,7 +846,7 @@ class Trainer:
                 gt_mask = y[0, 0].cpu().numpy()  # (128, 128), values 0.0 or 1.0
                 gt_pct = float(np.mean(gt_mask) * 100.0)
 
-                # Denormalize x back to uint8 RGB for heuristic evaluation
+                # Denormalize x back to uint8 RGB for heuristic evaluation (on CPU)
                 rgb_t = (x * std + mean) * 255.0
                 rgb_np = torch.clamp(rgb_t[0].permute(1, 2, 0), 0, 255).cpu().numpy().astype(np.uint8)
 
@@ -792,8 +867,9 @@ class Trainer:
                 pred_road_blocked = (hsv_pct > 30.0)
                 hsv_road_agreements.append(pred_road_blocked == gt_road_blocked)
 
-                # 2. Trained Flood U-Net
-                logits = unet_model(x)
+                # 2. Trained Flood U-Net (evaluated on self.device)
+                x_dev = x.to(self.device)
+                logits = unet_model(x_dev)
                 pred_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()
                 pred_unet = (pred_prob > 0.5).astype(np.uint8)
                 unet_pct = float(np.mean(pred_unet) * 100.0)
@@ -829,27 +905,35 @@ class Trainer:
         self, 
         data_dir: Path = Path("data/FloodNet"),
         epochs: int = 5, 
-        batch_size: int = 16, 
+        batch_size: Optional[int] = None, 
         lr: float = 0.001
     ) -> Dict[str, Any]:
         """Trains Stage 2 FloodSegmentationUNet with BCEWithLogitsLoss backpropagation
         on real FloodNet paired UAV RGB images and pixel ground truth masks.
         Replaces unlearned heuristic thresholding with true gradient descent optimization.
         """
+        bs = batch_size if batch_size is not None else min(self.batch_size, 16)
         print(f"\n--- [TRAIN STAGE 2] FloodNet Water Extent Segmentation U-Net ---")
         torch.manual_seed(42)
         np.random.seed(42)
 
-        train_dataset = FloodNetSegmentationDataset(data_dir, split="train", max_samples=120, seed=42)
+        max_samples = None if self.full_dataset else 120
+        eval_sample_size = 40
+        version = "2.0.0" if self.full_dataset else "1.0.0"
+        model_id = "stage2_flood_unet_v2" if self.full_dataset else "stage2_flood_unet_v1"
+        weights_name = "stage2_flood_unet_v2.pt" if self.full_dataset else "stage2_flood_unet_v1.pt"
+        provenance = [f"FloodNet ({'Full Dataset Masks' if self.full_dataset else '120 masks subset'})", "Pixel Ground-Truth Masks"]
+
+        train_dataset = FloodNetSegmentationDataset(data_dir, split="train", max_samples=max_samples, seed=42)
         if len(train_dataset) == 0:
             print("FloodNet dataset not found, skipping U-Net training.")
             return {"status": "skipped", "reason": "dataset not found"}
 
-        print(f"Dataset split: {len(train_dataset)} train masks, 40 validation masks")
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        print(f"Dataset split: {len(train_dataset)} train masks, {eval_sample_size} validation masks")
+        train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
 
-        model = FloodSegmentationUNet(load_weights=False)
-        criterion = nn.BCEWithLogitsLoss()
+        model = FloodSegmentationUNet(load_weights=False).to(self.device)
+        criterion = nn.BCEWithLogitsLoss().to(self.device)
         optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
         for epoch in range(epochs):
@@ -858,6 +942,8 @@ class Trainer:
             batches = 0
             t_epoch = time.time()
             for x, y in train_loader:
+                x = x.to(self.device)
+                y = y.to(self.device)
                 optimizer.zero_grad()
                 out = model(x)
                 loss = criterion(out, y)
@@ -868,20 +954,20 @@ class Trainer:
             avg_loss = total_loss / max(1, batches)
             print(f"  [Flood U-Net] Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} ({time.time() - t_epoch:.1f}s)")
 
-        # Canonical evaluation on held-out split (40 samples, seed 42)
-        legacy_metrics, trained_metrics = self._evaluate_canonical_floodnet(model, data_dir, sample_size=40, seed=42)
+        # Canonical evaluation on held-out split (fixed canonical sample size)
+        legacy_metrics, trained_metrics = self._evaluate_canonical_floodnet(model, data_dir, sample_size=eval_sample_size, seed=42)
 
         # Save weights
-        weights_file = self.output_dir / "stage2_flood_unet_v1.pt"
+        weights_file = self.output_dir / weights_name
         torch.save(model.state_dict(), weights_file)
         print(f"[OK] Saved Stage 2 Flood U-Net weights: {weights_file}")
 
         registered_meta = self.registry.register_model(
-            model_id="stage2_flood_unet_v1",
-            version="1.0.0",
+            model_id=model_id,
+            version=version,
             stage="stage2_flood_segmentation",
             architecture="FloodSegmentationUNet (Convolutional U-Net)",
-            dataset_provenance=["FloodNet-Supervised_v1.0 (UAV Aerial Flood)", "Pixel Ground-Truth Masks"],
+            dataset_provenance=provenance,
             weights_path=weights_file,
             metrics=trained_metrics,
             activate_immediately=True
@@ -906,8 +992,9 @@ class Trainer:
         """
         print(f"\n--- [BENCHMARK COMPARISON] FloodNet Heuristic Baseline vs. Trained U-Net ---")
         
-        unet_weights = self.output_dir / "stage2_flood_unet_v1.pt"
-        unet_model = FloodSegmentationUNet(weights_path=str(unet_weights) if unet_weights.exists() else None)
+        active_flood = self.registry.get_active_model("stage2_flood_segmentation")
+        weights_file = active_flood.weights_path if active_flood else (self.output_dir / "stage2_flood_unet_v1.pt")
+        unet_model = FloodSegmentationUNet(weights_path=str(weights_file) if Path(weights_file).exists() else None).to(self.device)
 
         legacy_metrics, trained_metrics = self._evaluate_canonical_floodnet(
             unet_model, data_dir, sample_size=sample_size, seed=42
@@ -926,24 +1013,31 @@ class Trainer:
             "samples_evaluated": sample_size
         }
 
-    def run_full_pipeline(self) -> Dict[str, Any]:
+    def run_full_pipeline(
+        self,
+        data_dir: Path = Path("data"),
+        epochs_s1: int = 3,
+        epochs_s2: int = 8,
+        epochs_flood: int = 5
+    ) -> Dict[str, Any]:
         """Runs the complete training and validation pipeline across all available datasets."""
         start_t = time.time()
         print("=" * 80)
-        print("STARTING END-TO-END TRAINING & VALIDATION PIPELINE")
+        print(f"STARTING END-TO-END TRAINING & VALIDATION PIPELINE (device={self.device}, full_dataset={self.full_dataset})")
         print("=" * 80)
 
+        data_p = Path(data_dir)
         # 1. Stage 1 on AIDER (Aerial Triage Scene Classifier)
-        stage1_res = self.train_stage1_aider(epochs=3)
+        stage1_res = self.train_stage1_aider(data_dir=data_p / "AIDER", epochs=epochs_s1)
 
         # 2. Stage 2 on RescueNet (Structural Damage Head & Road Passability Classifier)
-        stage2_res = self.train_stage2_rescuenet(epochs=8, lr=0.0005)
+        stage2_res = self.train_stage2_rescuenet(data_dir=data_p / "RescueNet", epochs=epochs_s2, lr=0.0005)
 
         # 3. Stage 2 on FloodNet (FloodSegmentationUNet with BCEWithLogitsLoss Backprop)
-        stage2_flood_res = self.train_stage2_floodnet_unet(epochs=5)
+        stage2_flood_res = self.train_stage2_floodnet_unet(data_dir=data_p / "FloodNet", epochs=epochs_flood)
 
         # 4. Comparative FloodNet Benchmark Evaluation (Canonical 40-sample set)
-        floodnet_eval = self.validate_floodnet(sample_size=40)
+        floodnet_eval = self.validate_floodnet(data_dir=data_p / "FloodNet", sample_size=40)
 
         elapsed = time.time() - start_t
         report = {
@@ -987,6 +1081,99 @@ class Trainer:
         return report
 
 
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Disaster Response AI - Multi-Stage Model Training & Evaluation Harness",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--full-dataset", 
+        action="store_true", 
+        help="Train on full uncapped datasets across all stages (requires GPU or --force-cpu-full)"
+    )
+    parser.add_argument(
+        "--device", 
+        type=str, 
+        default="auto", 
+        choices=["auto", "cuda", "cpu", "mps"],
+        help="Compute device for model training and inference"
+    )
+    parser.add_argument(
+        "--batch-size", 
+        type=int, 
+        default=32, 
+        help="DataLoader batch size"
+    )
+    parser.add_argument(
+        "--force-cpu-full", 
+        action="store_true", 
+        help="Explicitly allow training full datasets on CPU despite long execution times (6-10+ hrs)"
+    )
+    parser.add_argument(
+        "--stage", 
+        type=str, 
+        default="all", 
+        choices=["all", "stage1", "stage2_rescuenet", "stage2_floodnet", "validate_floodnet"],
+        help="Specific training stage to run"
+    )
+    parser.add_argument(
+        "--epochs-s1", 
+        type=int, 
+        default=3, 
+        help="Epoch count for Stage 1 (AIDER)"
+    )
+    parser.add_argument(
+        "--epochs-s2", 
+        type=int, 
+        default=8, 
+        help="Epoch count for Stage 2 Structural (RescueNet)"
+    )
+    parser.add_argument(
+        "--epochs-flood", 
+        type=int, 
+        default=5, 
+        help="Epoch count for Stage 2 Flood U-Net (FloodNet)"
+    )
+    parser.add_argument(
+        "--data-dir", 
+        type=Path, 
+        default=Path("data"), 
+        help="Root data directory containing AIDER, RescueNet, and FloodNet"
+    )
+    parser.add_argument(
+        "--output-dir", 
+        type=Path, 
+        default=Path("models/weights"), 
+        help="Directory to save trained model weights (.pt)"
+    )
+
+    args = parser.parse_args()
+
+    trainer = Trainer(
+        output_dir=args.output_dir,
+        device=args.device,
+        full_dataset=args.full_dataset,
+        batch_size=args.batch_size,
+        force_cpu_full=args.force_cpu_full
+    )
+
+    if args.stage == "all":
+        trainer.run_full_pipeline(
+            data_dir=args.data_dir,
+            epochs_s1=args.epochs_s1,
+            epochs_s2=args.epochs_s2,
+            epochs_flood=args.epochs_flood
+        )
+    elif args.stage == "stage1":
+        trainer.train_stage1_aider(data_dir=args.data_dir / "AIDER", epochs=args.epochs_s1, batch_size=args.batch_size)
+    elif args.stage == "stage2_rescuenet":
+        trainer.train_stage2_rescuenet(data_dir=args.data_dir / "RescueNet", epochs=args.epochs_s2, batch_size=args.batch_size)
+    elif args.stage == "stage2_floodnet":
+        trainer.train_stage2_floodnet_unet(data_dir=args.data_dir / "FloodNet", epochs=args.epochs_flood, batch_size=args.batch_size)
+    elif args.stage == "validate_floodnet":
+        trainer.validate_floodnet(data_dir=args.data_dir / "FloodNet")
+
+
 if __name__ == "__main__":
-    trainer = Trainer()
-    trainer.run_full_pipeline()
+    main()

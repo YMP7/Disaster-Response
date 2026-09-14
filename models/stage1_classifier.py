@@ -96,10 +96,11 @@ class DisasterTriageEngine:
         entropy_threshold: float = 1.25
     ) -> Dict[str, Any]:
         tensor = Stage1EdgeClassifier.preprocess_image(image_rgb)
-        
+        device = next(self.model.parameters()).device
+        tensor = tensor.to(device)
         with torch.no_grad():
             logits = self.model(tensor)
-            probs = F.softmax(logits, dim=-1).squeeze(0).numpy()
+            probs = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
 
         top_idx = int(np.argmax(probs))
         top_conf = float(probs[top_idx])

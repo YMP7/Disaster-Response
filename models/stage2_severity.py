@@ -70,9 +70,11 @@ class StructuralDamageHead(nn.Module):
     def assess_crop(self, crop_bgr: np.ndarray) -> Tuple[DamageGrade, float]:
         resized = cv2.resize(crop_bgr, (64, 64))
         tensor = torch.from_numpy(resized).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        device = next(self.parameters()).device
+        tensor = tensor.to(device)
         with torch.no_grad():
             logits = self.forward(tensor)
-            probs = F.softmax(logits, dim=-1).squeeze(0).numpy()
+            probs = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
         grade_idx = int(np.argmax(probs))
         return DamageGrade(grade_idx), float(probs[grade_idx])
 
@@ -169,9 +171,11 @@ class FloodSegmentationUNet(nn.Module):
         std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
         tensor = (tensor - mean) / std
 
+        device = next(self.parameters()).device
+        tensor = tensor.to(device)
         with torch.no_grad():
             logits = self.forward(tensor)
-            probs = torch.sigmoid(logits).squeeze().numpy()
+            probs = torch.sigmoid(logits).squeeze().cpu().numpy()
             pred_mask = (probs > 0.5).astype(np.uint8)
 
         water_extent_pct = round(float(np.mean(pred_mask) * 100.0), 2)
@@ -238,9 +242,11 @@ class RoadPassabilityClassifier(nn.Module):
         std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
         tensor = (tensor - mean) / std
 
+        device = next(self.parameters()).device
+        tensor = tensor.to(device)
         with torch.no_grad():
             logits = self.forward(tensor)
-            probs = F.softmax(logits, dim=-1).squeeze().numpy()
+            probs = F.softmax(logits, dim=-1).squeeze().cpu().numpy()
         pred_idx = int(np.argmax(probs))
         status = RoadPassability.ROAD_BLOCKED if pred_idx == 1 else RoadPassability.ROAD_CLEAR
         return status, float(probs[pred_idx])
