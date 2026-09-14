@@ -21,7 +21,12 @@ scratch/
 Thumbs.db
 .DS_Store
 
-# Datasets
+# Datasets & Archives
 data/*
 !data/README.md
+*.zip
+*.tar
+*.tgz
+*.tar.gz
+*.crdownload
 

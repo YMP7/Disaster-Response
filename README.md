@@ -127,6 +127,8 @@ The platform ingests multi-modal disaster imagery (satellite, UAV, CCTV, crowdso
 │   ├── settings.py                 # Core configurations, MHA SDRF rates & DGCA parameters
 │   ├── disaster_registry.json     # Dynamic registry for disaster types & stage-2 modules
 │   └── model_registry.json        # Active model versions, SHA-256 checksums & rollback
+├── data/
+│   └── README.md                   # Dataset download guide (AIDER, FloodNet, RescueNet, xBD)
 ├── data_pipeline/
 │   ├── schema.py                   # Pydantic schemas (AIDER, xBD, FloodNet, RescueNet)
 │   ├── ingestion.py                # Public benchmark ingestion adapters
@@ -270,14 +272,14 @@ See [docs/plugin_guide.md](docs/plugin_guide.md) for detailed code examples and 
 
 | # | Paper / Regulatory Standard | Architectural Component Justified |
 | :---: | :--- | :--- |
-| 1 | **Kyrkou & Theocharides (CVPRW 2019)** [arXiv:1906.08716](https://arxiv.org/pdf/1906.08716) | AIDER aerial triage taxonomy & two-stage routing. |
+| 1 | **Kyrkou & Theocharides (CVPRW 2019)** [arXiv:1906.08716](https://arxiv.org/pdf/1906.08716) | AIDER aerial triage taxonomy & two-stage routing. Dataset: [Kaggle](https://www.kaggle.com/datasets/clguo1/aiderdata). |
 | 2 | **EmergencyNet (IEEE JSTARS 2021)** [arXiv:2104.14006](https://arxiv.org/pdf/2104.14006) | Lightweight CNN backbones (MobileNetV3) for embedded edge inference. |
 | 3 | **Younis et al. (2018)** [arXiv:1807.11805](https://arxiv.org/pdf/1807.11805) | Minimalist multi-disaster baseline evaluation. |
 | 4 | **Alsaaran & Soudani (Sensors 2025)** [doi:10.3390/s25175406](https://doi.org/10.3390/s25175406) | Real-time edge structural damage level prediction. |
 | 5 | **Evaluating Fine-Tuned DL (Springer 2024)** [doi:10.1007/s43503-024-00034-6](https://link.springer.com/article/10.1007/s43503-024-00034-6) | Selection of segmentation vs. detection heads for collapsed structures. |
-| 6 | **xBD Dataset (Gupta et al., 2019)** [arXiv:1911.09296](https://arxiv.org/pdf/1911.09296) | Standardized 4-level ordinal damage scale (`No`, `Minor`, `Major`, `Destroyed`). |
-| 7 | **FloodNet (Rahnemoonfar et al., 2021)** [arXiv:2012.02951](https://arxiv.org/pdf/2012.02951) | High-resolution UAV oblique flood extent segmentation and VQA. |
-| 8 | **RescueNet (Rahnemoonfar et al., 2023)** [Nature Sci Data](https://www.nature.com/articles/s41597-023-02799-4) | `road-clear` vs. `road-blocked` semantic classes for logistical access. |
+| 6 | **xBD Dataset (Gupta et al., 2019)** [arXiv:1911.09296](https://arxiv.org/pdf/1911.09296) | Standardized 4-level ordinal damage scale (`No`, `Minor`, `Major`, `Destroyed`). Portal: [xView2](https://xview2.org/dataset). |
+| 7 | **FloodNet (Rahnemoonfar et al., 2021)** [arXiv:2012.02951](https://arxiv.org/pdf/2012.02951) | High-resolution UAV oblique flood extent segmentation and VQA. Dataset: [Dropbox Archive](https://www.dropbox.com/scl/fo/k33qdif15ns2qv2jdxvhx/ANGaa8iPRhvlrvcKXjnmNRc?rlkey=ao2493wzl1cltonowjdbrnp7f&e=5&dl=0). |
+| 8 | **RescueNet (Rahnemoonfar et al., 2023)** [Nature Sci Data](https://www.nature.com/articles/s41597-023-02799-4) | `road-clear` vs. `road-blocked` semantic classes for logistical access. Dataset: [Dropbox Archive](https://www.dropbox.com/scl/fo/ntgeyhxe2mzd2wuh7he7x/AHJ-cNzQL-Eu04HS6bvBgcw?rlkey=6vxiaqve9gp6vzvzh3t5mz0vv&e=6&dl=0). |
 | 9 | **DisasTeller Multi-Agent LVLM (2024)** [arXiv:2411.01511](https://arxiv.org/pdf/2411.01511) | Cooperating micro-agent orchestration and advisory situation reporting. |
 | 10 | **Drone vs. Satellite Disagreement (2025)** [arXiv:2505.08117](https://arxiv.org/pdf/2505.08117) | Calibration, uncertainty thresholding, and mandatory HITL approval gates. |
 | 11 | **RL for Emergency Response Survey (2025)** [arXiv:2505.03979](https://arxiv.org/pdf/2505.03979) | Reinforcement learning for dispatch sequencing under resource constraints. |

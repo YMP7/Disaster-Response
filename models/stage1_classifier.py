@@ -1,3 +1,4 @@
+
 """Stage 1: Lightweight Edge Disaster Scene Classifier.
 Grounded in AIDER (Kyrkou 2019) and EmergencyNet (Kyrkou 2021).
 Designed for sub-50ms inference on UAV companion computers (e.g. NVIDIA Jetson).

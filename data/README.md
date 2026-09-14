@@ -6,11 +6,11 @@ This document specifies the dataset sources, download links, expected directory 
 
 ## Quick Reference Summary
 
-| Dataset | Primary Role | Domain & Modality | Approx Size | Download Access | Priority |
+| Dataset | Primary Role | Domain & Modality | Approx Size | Download Access & Verified Links | Priority |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **AIDER** | Stage-1 Disaster Scene Triage | UAV / Drone RGB (oblique) | **~2.5 GB** | Open Access (GitHub / Direct) | **Highest (Start here)** |
-| **FloodNet** | Stage-2 Flood Severity & VQA | UAV RGB (high-res oblique) | **~5.2 GB** | Open Access (GitHub / GDrive) | **High** |
-| **RescueNet** | Road Passability & Structural Damage | UAV RGB (Post-Hurricane Ian) | **~10.4 GB** | Open Access (GitHub / GDrive) | **Medium** |
+| **AIDER** | Stage-1 Disaster Scene Triage | UAV / Drone RGB (oblique) | **~2.5 GB** | [Kaggle Dataset (clguo1/aiderdata)](https://www.kaggle.com/datasets/clguo1/aiderdata) | **Highest (Start here)** |
+| **FloodNet** | Stage-2 Flood Severity & VQA | UAV RGB (high-res oblique) | **~5.2 GB** | [Dropbox Direct Archive](https://www.dropbox.com/scl/fo/k33qdif15ns2qv2jdxvhx/ANGaa8iPRhvlrvcKXjnmNRc?rlkey=ao2493wzl1cltonowjdbrnp7f&e=5&dl=0) | **High** |
+| **RescueNet** | Road Passability & Structural Damage | UAV RGB (Post-Hurricane Ian) | **~10.4 GB** | [Dropbox Direct Archive](https://www.dropbox.com/scl/fo/ntgeyhxe2mzd2wuh7he7x/AHJ-cNzQL-Eu04HS6bvBgcw?rlkey=6vxiaqve9gp6vzvzh3t5mz0vv&e=6&dl=0) | **Medium** |
 | **xBD (xView2)** | Building Damage Multi-Hazard Scale | Satellite RGB (pre + post disaster) | **~35 GB** | Free Registration ([xview2.org](https://xview2.org)) | **Optional / Advanced** |
 | **ISRO Bhuvan** | India Ground-Truth Flood Vectors | Satellite Optical + RISAT SAR GeoTIFF | **Variable** | Open Data ([bhuvan.nrsc.gov.in](https://bhuvan-app1.nrsc.gov.in/disaster/)) | **India Field Ops** |
 
@@ -20,8 +20,8 @@ This document specifies the dataset sources, download links, expected directory 
 *Recommended First Download: Smallest footprint, directly maps to Stage-1 edge classification.*
 
 - **Paper / Grounding**: Kyrkou & Theocharides (CVPRW 2019, IEEE JSTARS EmergencyNet 2021)
-- **Official Repository**: [https://github.com/philipposkyrkou/AIDER](https://github.com/philipposkyrkou/AIDER)
-- **Direct Download Link**: Download the dataset zip from the GitHub repo links or Zenodo/Google Drive mirrors linked in the README.
+- **Primary Download Link (Kaggle)**: [https://www.kaggle.com/datasets/clguo1/aiderdata](https://www.kaggle.com/datasets/clguo1/aiderdata)
+- **GitHub Reference Repo**: [https://github.com/philipposkyrkou/AIDER](https://github.com/philipposkyrkou/AIDER)
 - **Classes**: `Fire/Smoke`, `Flood`, `Collapsed Building`, `Traffic Accident`, `Normal`.
 - **Expected Directory Structure**:
   ```text
@@ -47,7 +47,8 @@ This document specifies the dataset sources, download links, expected directory 
 *High-resolution oblique UAV imagery for flooded structure counting and water segmentation.*
 
 - **Paper / Grounding**: Rahnemoonfar et al. (IEEE Access 2021)
-- **Official Repository**: [https://github.com/Bina-Lab/FloodNet-Supervised_v1.0](https://github.com/Bina-Lab/FloodNet-Supervised_v1.0)
+- **Primary Download Link (Dropbox)**: [FloodNet Dropbox Archive](https://www.dropbox.com/scl/fo/k33qdif15ns2qv2jdxvhx/ANGaa8iPRhvlrvcKXjnmNRc?rlkey=ao2493wzl1cltonowjdbrnp7f&e=5&dl=0)
+- **GitHub Reference Repo**: [https://github.com/Bina-Lab/FloodNet-Supervised_v1.0](https://github.com/Bina-Lab/FloodNet-Supervised_v1.0)
 - **Expected Directory Structure**:
   ```text
   data/
@@ -69,7 +70,8 @@ This document specifies the dataset sources, download links, expected directory 
 *Essential for Road Passability (Road-Clear vs Road-Blocked) and roof damage segmentation.*
 
 - **Paper / Grounding**: Bina-Lab (IEEE TGRS / CVPRW)
-- **Official Repository**: [https://github.com/Bina-Lab/RescueNet](https://github.com/Bina-Lab/RescueNet)
+- **Primary Download Link (Dropbox)**: [RescueNet Dropbox Archive](https://www.dropbox.com/scl/fo/ntgeyhxe2mzd2wuh7he7x/AHJ-cNzQL-Eu04HS6bvBgcw?rlkey=6vxiaqve9gp6vzvzh3t5mz0vv&e=6&dl=0)
+- **GitHub Reference Repo**: [https://github.com/Bina-Lab/RescueNet](https://github.com/Bina-Lab/RescueNet)
 - **Expected Directory Structure**:
   ```text
   data/
