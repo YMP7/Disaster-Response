@@ -381,7 +381,7 @@ class SyntheticDisasterDataset(Dataset):
 
 
 # =====================================================================
-# 4. MASTER TRAINER & VALIDATION HARNESS
+# 6. MASTER TRAINER & VALIDATION HARNESS
 # =====================================================================
 
 class Trainer:

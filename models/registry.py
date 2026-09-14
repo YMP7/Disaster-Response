@@ -5,6 +5,7 @@ and zero-code-change rollbacks for production disaster response models.
 
 import json
 import hashlib
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
@@ -92,7 +93,7 @@ class ModelRegistry:
             metrics=metrics or {},
             weights_path=str(weights_path),
             is_active=activate_immediately,
-            registered_at=1726000000.0,
+            registered_at=time.time(),
             status=status if activate_immediately else ("trained_but_ineffective" if status == "active" else status),
             notes=notes
         )
