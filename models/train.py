@@ -68,12 +68,8 @@ class RealAIDERDataset(Dataset):
     ):
         self.samples: List[Tuple[Path, int]] = []
         
-        # Resolve nested AIDER folder if present
-        target_dir = base_dir
-        if (base_dir / "AIDER").exists() and (base_dir / "AIDER" / "fire").exists():
-            target_dir = base_dir / "AIDER"
-        elif (base_dir / "aider").exists():
-            target_dir = base_dir / "aider"
+        # Resolve nested AIDER folder: search recursively for known class directories
+        target_dir = self._resolve_aider_root(base_dir)
 
         rng = np.random.RandomState(seed)
 
@@ -96,7 +92,33 @@ class RealAIDERDataset(Dataset):
             for img_p in selected:
                 self.samples.append((img_p, class_idx))
 
+        if len(self.samples) == 0:
+            top_dirs = [p.name for p in base_dir.rglob("*") if p.is_dir()][:20]
+            raise FileNotFoundError(
+                f"[AIDER] No class folders (fire, flood, collapsed_building, etc.) found under {base_dir}. "
+                f"Searched recursively from: {target_dir}. "
+                f"Top directories found: {top_dirs}"
+            )
+
         rng.shuffle(self.samples)
+
+    @staticmethod
+    def _resolve_aider_root(base_dir: Path) -> Path:
+        """Recursively search for the directory containing AIDER class folders."""
+        known_classes = {"fire", "flood", "flooded_areas", "collapsed_building", "normal", "traffic_incident"}
+        # Direct check
+        if any((base_dir / c).exists() for c in known_classes):
+            return base_dir
+        # One-level nesting
+        for child in base_dir.iterdir():
+            if child.is_dir() and any((child / c).exists() for c in known_classes):
+                return child
+        # Recursive fallback: find any known class dir and return its parent
+        for class_name in known_classes:
+            found = list(base_dir.rglob(class_name))
+            if found and found[0].is_dir():
+                return found[0].parent
+        return base_dir
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -140,15 +162,13 @@ class RescueNetDamageDataset(Dataset):
     ):
         self.crops: List[Tuple[torch.Tensor, int]] = []
         
-        target_dir = base_dir
-        if (base_dir / "RescueNet").exists():
-            target_dir = base_dir / "RescueNet"
-
-        org_dir = target_dir / split / f"{split}-org-img"
-        lbl_dir = target_dir / split / f"{split}-label-img"
-
-        if not lbl_dir.exists():
-            return
+        org_dir, lbl_dir = self._resolve_rescuenet_dirs(base_dir, split)
+        if org_dir is None or lbl_dir is None:
+            raise FileNotFoundError(
+                f"[RescueNet Damage] Could not locate '{split}-org-img' or '{split}-label-img' "
+                f"anywhere under {base_dir}. "
+                f"Found top-level dirs: {[p.name for p in base_dir.iterdir() if p.is_dir()]}"
+            )
 
         mask_files = sorted(list(lbl_dir.glob("*.png")))
         rng = np.random.RandomState(seed)
@@ -212,6 +232,27 @@ class RescueNetDamageDataset(Dataset):
                         if counts[grade] >= max_samples_per_class:
                             break
 
+    @staticmethod
+    def _resolve_rescuenet_dirs(base_dir: Path, split: str):
+        """Recursively search for {split}-org-img and {split}-label-img directories."""
+        org_name = f"{split}-org-img"
+        lbl_name = f"{split}-label-img"
+        
+        # Direct path check (original expected structure)
+        for candidate in [base_dir, base_dir / "RescueNet"]:
+            org = candidate / split / org_name
+            lbl = candidate / split / lbl_name
+            if org.exists() and lbl.exists():
+                return org, lbl
+        
+        # Recursive search
+        org_dirs = list(base_dir.rglob(org_name))
+        lbl_dirs = list(base_dir.rglob(lbl_name))
+        if org_dirs and lbl_dirs:
+            return org_dirs[0], lbl_dirs[0]
+        
+        return None, None
+
     def __len__(self) -> int:
         return len(self.crops)
 
@@ -242,12 +283,15 @@ class RescueNetRoadDataset(Dataset):
         seed: int = 42
     ):
         self.samples: List[Tuple[torch.Tensor, int]] = []
-        target_dir = base_dir / "RescueNet" if (base_dir / "RescueNet").exists() else base_dir
-        org_dir = target_dir / split / f"{split}-org-img"
-        lbl_dir = target_dir / split / f"{split}-label-img"
-
-        if not org_dir.exists() or not lbl_dir.exists():
-            return
+        
+        # Reuse the same recursive resolver from RescueNetDamageDataset
+        org_dir, lbl_dir = RescueNetDamageDataset._resolve_rescuenet_dirs(base_dir, split)
+        if org_dir is None or lbl_dir is None:
+            raise FileNotFoundError(
+                f"[RescueNet Road] Could not locate '{split}-org-img' or '{split}-label-img' "
+                f"anywhere under {base_dir}. "
+                f"Found top-level dirs: {[p.name for p in base_dir.iterdir() if p.is_dir()]}"
+            )
 
         mask_files = sorted(list(lbl_dir.glob("*.png")))
         rng = np.random.RandomState(seed)
@@ -313,12 +357,14 @@ class FloodNetSegmentationDataset(Dataset):
         seed: int = 42
     ):
         self.data: List[Tuple[torch.Tensor, torch.Tensor]] = []
-        target_dir = base_dir / "FloodNet-Supervised_v1.0" if (base_dir / "FloodNet-Supervised_v1.0").exists() else base_dir
-        org_dir = target_dir / split / f"{split}-org-img"
-        lbl_dir = target_dir / split / f"{split}-label-img"
-
-        if not org_dir.exists() or not lbl_dir.exists():
-            return
+        
+        org_dir, lbl_dir = self._resolve_floodnet_dirs(base_dir, split)
+        if org_dir is None or lbl_dir is None:
+            raise FileNotFoundError(
+                f"[FloodNet] Could not locate '{split}-org-img' or '{split}-label-img' "
+                f"anywhere under {base_dir}. "
+                f"Found top-level dirs: {[p.name for p in base_dir.iterdir() if p.is_dir()]}"
+            )
 
         img_files = sorted(list(org_dir.glob("*.jpg")))
         rng = np.random.RandomState(seed)
@@ -350,6 +396,27 @@ class FloodNetSegmentationDataset(Dataset):
             mask_t = torch.from_numpy(gt_water).unsqueeze(0).float()
 
             self.data.append((img_t, mask_t))
+
+    @staticmethod
+    def _resolve_floodnet_dirs(base_dir: Path, split: str):
+        """Recursively search for FloodNet {split}-org-img and {split}-label-img directories."""
+        org_name = f"{split}-org-img"
+        lbl_name = f"{split}-label-img"
+        
+        # Direct path checks (known nesting variants)
+        for candidate in [base_dir, base_dir / "FloodNet-Supervised_v1.0", base_dir / "FloodNet"]:
+            org = candidate / split / org_name
+            lbl = candidate / split / lbl_name
+            if org.exists() and lbl.exists():
+                return org, lbl
+        
+        # Recursive search
+        org_dirs = list(base_dir.rglob(org_name))
+        lbl_dirs = list(base_dir.rglob(lbl_name))
+        if org_dirs and lbl_dirs:
+            return org_dirs[0], lbl_dirs[0]
+        
+        return None, None
 
     def __len__(self) -> int:
         return len(self.data)
@@ -591,8 +658,12 @@ class Trainer:
         
         if data_dir.exists() and any(data_dir.rglob("*.png")):
             print(f"Extracting building crops from RescueNet: {data_dir} (full={self.full_dataset})")
-            train_dataset = RescueNetDamageDataset(data_dir, split="train", max_samples_per_class=max_crops, seed=42)
-            val_dataset = RescueNetDamageDataset(data_dir, split="val", max_samples_per_class=val_crops, seed=42)
+            try:
+                train_dataset = RescueNetDamageDataset(data_dir, split="train", max_samples_per_class=max_crops, seed=42)
+                val_dataset = RescueNetDamageDataset(data_dir, split="val", max_samples_per_class=val_crops, seed=42)
+            except FileNotFoundError as e:
+                print(f"[SKIP] RescueNet directory structure mismatch: {e}")
+                return {"status": "skipped", "reason": f"directory structure mismatch: {e}"}
             crops_desc = f"Full Dataset ({len(train_dataset)} crops)" if self.full_dataset else f"{len(train_dataset)} crops subset"
             provenance = [f"RescueNet ({crops_desc})", "Ground-Truth Damage Masks"]
         else:
@@ -669,7 +740,11 @@ class Trainer:
 
         # Train RoadPassabilityClassifier on real RescueNet RGB scenes
         print(f"Training RoadPassabilityClassifier on real RescueNet RGB road scenes (full={self.full_dataset})...")
-        road_train_ds = RescueNetRoadDataset(data_dir, split="train", max_samples=road_max, seed=42)
+        try:
+            road_train_ds = RescueNetRoadDataset(data_dir, split="train", max_samples=road_max, seed=42)
+        except FileNotFoundError as e:
+            print(f"[SKIP] Road passability directory structure mismatch: {e}")
+            road_train_ds = type('Empty', (), {'__len__': lambda s: 0})()
         road_model = RoadPassabilityClassifier(load_weights=False).to(self.device)
         road_acc = 0.50
         road_samples = 0
@@ -924,7 +999,11 @@ class Trainer:
         weights_name = "stage2_flood_unet_v2.pt" if self.full_dataset else "stage2_flood_unet_v1.pt"
         provenance = [f"FloodNet ({'Full Dataset Masks' if self.full_dataset else '120 masks subset'})", "Pixel Ground-Truth Masks"]
 
-        train_dataset = FloodNetSegmentationDataset(data_dir, split="train", max_samples=max_samples, seed=42)
+        try:
+            train_dataset = FloodNetSegmentationDataset(data_dir, split="train", max_samples=max_samples, seed=42)
+        except FileNotFoundError as e:
+            print(f"[SKIP] FloodNet directory structure mismatch: {e}")
+            return {"status": "skipped", "reason": f"directory structure mismatch: {e}"}
         if len(train_dataset) == 0:
             print("FloodNet dataset not found, skipping U-Net training.")
             return {"status": "skipped", "reason": "dataset not found"}

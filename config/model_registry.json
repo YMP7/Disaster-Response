@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
   "active_models": {
-    "stage1_triage": "stage1_mobilenetv3_triage_v1",
+    "stage1_triage": "stage1_mobilenetv3_triage_v2",
     "stage2_severity": "stage2_structural_rescuenet_v1",
-    "stage2_flood_segmentation": "stage2_flood_unet_v1"
+    "stage2_flood_segmentation": "stage2_flood_unet_v2"
   },
   "models": {
     "stage1_mobilenetv3_triage_v1": {
@@ -24,7 +24,7 @@
         "num_val_samples": 400
       },
       "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt",
-      "is_active": true,
+      "is_active": false,
       "registered_at": 1726000000.0,
       "status": "active",
       "notes": null
@@ -89,7 +89,7 @@
         "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
       },
       "weights_path": "models\\weights\\stage2_flood_unet_v1.pt",
-      "is_active": true,
+      "is_active": false,
       "registered_at": 1726000000.0,
       "status": "active",
       "notes": null
@@ -114,6 +114,53 @@
       "registered_at": 1726000000.0,
       "status": "benchmarked_and_found_inadequate",
       "notes": "Hand-picked HSV silt/blue color ranges without gradient learning. Benchmarked on held-out FloodNet imagery (canonical 40 samples) and found inadequate (IoU 0.106, MAE 45.32%, road agreement 32.5% - worse than coin flip). Superseded by stage2_flood_unet_v1."
+    },
+    "stage1_mobilenetv3_triage_v2": {
+      "model_id": "stage1_mobilenetv3_triage_v2",
+      "version": "2.0.0",
+      "stage": "stage1_triage",
+      "architecture": "MobileNetV3-Small",
+      "dataset_provenance": [
+        "AIDER (Full Dataset, 6433 samples)",
+        "ImageNet Pretrained Backbone"
+      ],
+      "sha256_checksum": "edfc08d9a67d866929e5feb291dac5f70dd341df816fcfeb511d6cd74b026315",
+      "metrics": {
+        "val_accuracy": 0.9488,
+        "macro_f1": 0.9023,
+        "expected_calibration_error": 0.0209,
+        "max_calibration_error": 0.4885,
+        "num_val_samples": 1289
+      },
+      "weights_path": "models/weights/stage1_mobilenetv3_india_v2.pt",
+      "is_active": true,
+      "registered_at": 1789491837.8269382,
+      "status": "active",
+      "notes": null
+    },
+    "stage2_flood_unet_v2": {
+      "model_id": "stage2_flood_unet_v2",
+      "version": "2.0.0",
+      "stage": "stage2_flood_segmentation",
+      "architecture": "FloodSegmentationUNet (Convolutional U-Net)",
+      "dataset_provenance": [
+        "FloodNet (Full Dataset Masks)",
+        "Pixel Ground-Truth Masks"
+      ],
+      "sha256_checksum": "4438ebd8c263105a7c4794e6f41e28e62aa07358c4d8533933ed0cd3a35f385e",
+      "metrics": {
+        "status": "active_trained_model",
+        "model_type": "FloodSegmentationUNet",
+        "water_mask_mean_iou": 0.6158,
+        "water_extent_mae_pct": 3.77,
+        "samples_evaluated": 40,
+        "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
+      },
+      "weights_path": "models/weights/stage2_flood_unet_v2.pt",
+      "is_active": true,
+      "registered_at": 1789492182.9354935,
+      "status": "active",
+      "notes": null
     }
   }
 }

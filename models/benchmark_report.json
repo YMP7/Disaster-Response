@@ -1,46 +1,36 @@
 {
-  "timestamp": 1789392730.7075765,
-  "elapsed_seconds": 802.99,
+  "timestamp": 1789492190.6341822,
+  "elapsed_seconds": 415.36,
   "stage1_triage_aider": {
     "status": "success",
-    "model_id": "stage1_mobilenetv3_triage_v1",
-    "version": "1.1.0",
+    "model_id": "stage1_mobilenetv3_triage_v2",
+    "version": "2.0.0",
     "metrics": {
-      "val_accuracy": 0.8425,
-      "macro_f1": 0.8506,
-      "expected_calibration_error": 0.028,
-      "max_calibration_error": 0.6398,
-      "num_val_samples": 400
+      "val_accuracy": 0.9488,
+      "macro_f1": 0.9023,
+      "expected_calibration_error": 0.0209,
+      "max_calibration_error": 0.4885,
+      "num_val_samples": 1289
     },
-    "weights_path": "models\\weights\\stage1_mobilenetv3_india_v1.pt"
+    "weights_path": "models/weights/stage1_mobilenetv3_india_v2.pt"
   },
   "stage2_rescuenet": {
-    "status": "success",
-    "model_id": "stage2_structural_rescuenet_v1",
-    "version": "1.0.0",
-    "metrics": {
-      "val_damage_accuracy": 0.6,
-      "val_ordinal_mae": 0.5125,
-      "val_road_passability_accuracy": 0.5,
-      "road_passability_status": "trained_but_ineffective",
-      "num_val_crops": 160,
-      "num_road_eval_scenes": 56
-    },
-    "weights_path": "models\\weights\\stage2_structural_rescuenet_v1.pt"
+    "status": "skipped",
+    "reason": "no valid crops extracted"
   },
   "stage2_flood_unet": {
     "status": "success",
-    "model_id": "stage2_flood_unet_v1",
-    "version": "1.0.0",
+    "model_id": "stage2_flood_unet_v2",
+    "version": "2.0.0",
     "metrics": {
       "status": "active_trained_model",
       "model_type": "FloodSegmentationUNet",
-      "water_mask_mean_iou": 0.2342,
-      "water_extent_mae_pct": 7.75,
+      "water_mask_mean_iou": 0.6158,
+      "water_extent_mae_pct": 3.77,
       "samples_evaluated": 40,
       "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
     },
-    "weights_path": "models\\weights\\stage2_flood_unet_v1.pt"
+    "weights_path": "models/weights/stage2_flood_unet_v2.pt"
   },
   "floodnet_comparative_benchmark": {
     "status": "success",
@@ -56,8 +46,8 @@
     "trained_unet_model": {
       "status": "active_trained_model",
       "model_type": "FloodSegmentationUNet",
-      "water_mask_mean_iou": 0.2342,
-      "water_extent_mae_pct": 7.75,
+      "water_mask_mean_iou": 0.6158,
+      "water_extent_mae_pct": 3.77,
       "samples_evaluated": 40,
       "evaluation_note": "Trained with real gradient descent (BCEWithLogitsLoss + AdamW) on real FloodNet pixel masks."
     },
