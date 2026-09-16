@@ -783,11 +783,12 @@ class Trainer:
             # Validate Road Passability with matching ground-truth and prediction criteria
             road_acc, road_samples = self._validate_rescuenet_roads(data_dir, road_model=road_model, num_samples=road_val)
 
-            # QUALITY GATE: Model must outperform naive chance level (0.50) to be marked active
-            road_is_active = road_acc > 0.60
+            # QUALITY GATE: Model must exceed 65% accuracy (well clear of 50% chance level) to be marked active.
+            # If accuracy is < 65%, the model is deactivated and flagged for architectural redesign (e.g. road corridor crops).
+            road_is_active = road_acc >= 0.65
             road_status = "active" if road_is_active else "trained_but_ineffective"
             if not road_is_active:
-                print(f"[QUALITY GATE REJECTED] RoadPassabilityClassifier accuracy ({road_acc*100:.1f}%) is at chance level.")
+                print(f"[QUALITY GATE REJECTED] RoadPassabilityClassifier accuracy ({road_acc*100:.1f}%) is below the 65.0% deployment threshold.")
                 print(f"                       Marking as '{road_status}' and DEACTIVATING in model registry.")
 
             self.registry.register_model(
@@ -814,7 +815,7 @@ class Trainer:
             "val_damage_accuracy": round(accuracy, 4),
             "val_ordinal_mae": round(ordinal_mae, 4),
             "val_road_passability_accuracy": round(road_acc, 4),
-            "road_passability_status": "active" if road_acc > 0.60 else "trained_but_ineffective",
+            "road_passability_status": "active" if road_acc >= 0.65 else "trained_but_ineffective",
             "num_val_crops": len(val_dataset),
             "num_road_eval_scenes": road_samples
         }
