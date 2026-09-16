@@ -129,21 +129,24 @@ class TestRealRescueNetBenchmark:
             assert 0.0 <= conf <= 1.0
 
         # Strict Quality Gate Assertion:
-        # A road passability model performing at chance level (<=0.60) MUST NOT be marked active
+        # Any model performing at chance level (<=0.60) MUST NOT be active.
+        # If an active road passability model is registered, it MUST have cleared the >=0.65 gate.
         registry = ModelRegistry()
-        road_meta = registry.models.get("stage2_road_passability_v1")
-        if road_meta:
-            acc = road_meta.metrics.get("val_road_passability_accuracy", 0.0)
-            if acc <= 0.60:
-                assert road_meta.is_active is False, (
-                    f"Quality Gate Violation: Road passability model at chance level ({acc}) must NOT be active!"
-                )
-                assert road_meta.status == "trained_but_ineffective", (
-                    f"Expected status 'trained_but_ineffective', got '{road_meta.status}'"
-                )
-                assert "stage2_road_passability" not in registry.active_models, (
-                    "Ineffective road passability model must NOT be present in active_models!"
-                )
+        active_road_id = registry.active_models.get("stage2_road_passability")
+        if active_road_id:
+            active_meta = registry.models[active_road_id]
+            assert active_meta.is_active is True
+            acc = active_meta.metrics.get("val_road_passability_accuracy", 0.0)
+            assert acc >= 0.65, f"Active road model {active_road_id} must clear >=0.65 quality gate, got {acc}"
+        
+        # Verify any ineffective model (like v1) is never active
+        road_meta_v1 = registry.models.get("stage2_road_passability_v1")
+        if road_meta_v1:
+            v1_acc = road_meta_v1.metrics.get("val_road_passability_accuracy", 0.0)
+            if v1_acc <= 0.60:
+                assert road_meta_v1.is_active is False
+                assert road_meta_v1.status == "trained_but_ineffective"
+                assert registry.active_models.get("stage2_road_passability") != "stage2_road_passability_v1"
 
 
 class TestRealFloodNetBenchmark:
@@ -208,10 +211,19 @@ class TestModelRegistryIntegrity:
         assert "stage2_severity" in active
         assert "stage2_flood_segmentation" in active
 
-        # Road passability must NOT be in active_models if performing at chance level (50%)
-        assert "stage2_road_passability" not in active, (
-            "stage2_road_passability performs at 50% chance level and must NOT be active!"
-        )
+        # Road passability must NOT be in active_models if performing at chance level (<=60%)
+        # If active, it must have legitimately cleared the >=65% quality gate
+        active_road_id = active.get("stage2_road_passability")
+        if active_road_id:
+            active_road = registry.models[active_road_id]
+            road_acc = active_road.metrics.get("val_road_passability_accuracy", 0.0)
+            assert road_acc >= 0.65, f"Active road model must clear quality gate (>=65%), got {road_acc}"
+            assert active_road.is_active is True
+        else:
+            v1_road = registry.models.get("stage2_road_passability_v1")
+            if v1_road:
+                assert v1_road.is_active is False
+                assert v1_road.status == "trained_but_ineffective"
 
         flood_model = registry.get_active_model("stage2_flood_segmentation")
         assert flood_model is not None

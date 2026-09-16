@@ -880,7 +880,7 @@ class Trainer:
                 correct += 1
             evaluated += 1
 
-        acc = float(correct / evaluated) if evaluated > 0 else 0.85
+        acc = float(correct / evaluated) if evaluated > 0 else 0.0
         print(f"[OK] Evaluated Road Passability on {evaluated} real RescueNet RGB scenes: Accuracy = {acc * 100:.2f}%")
         return acc, evaluated
 
