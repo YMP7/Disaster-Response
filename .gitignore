@@ -29,5 +29,5 @@ data/*
 *.tgz
 *.tar.gz
 *.crdownload
-disaster_response_v2_artifacts/
+disaster_response_v2_artifacts*/
 

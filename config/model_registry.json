@@ -2,8 +2,9 @@
   "version": "1.0.0",
   "active_models": {
     "stage1_triage": "stage1_mobilenetv3_triage_v2",
-    "stage2_severity": "stage2_structural_rescuenet_v1",
-    "stage2_flood_segmentation": "stage2_flood_unet_v2"
+    "stage2_severity": "stage2_structural_rescuenet_v2",
+    "stage2_flood_segmentation": "stage2_flood_unet_v2",
+    "stage2_road_passability": "stage2_road_passability_v2"
   },
   "models": {
     "stage1_mobilenetv3_triage_v1": {
@@ -45,7 +46,7 @@
         "num_val_crops": 160
       },
       "weights_path": "models\\weights\\stage2_structural_rescuenet_v1.pt",
-      "is_active": true,
+      "is_active": false,
       "registered_at": 1726000000.0,
       "status": "active",
       "notes": null
@@ -159,6 +160,47 @@
       "weights_path": "models/weights/stage2_flood_unet_v2.pt",
       "is_active": true,
       "registered_at": 1789492182.9354935,
+      "status": "active",
+      "notes": null
+    },
+    "stage2_structural_rescuenet_v2": {
+      "model_id": "stage2_structural_rescuenet_v2",
+      "version": "2.0.0",
+      "stage": "stage2_severity",
+      "architecture": "StructuralDamageHead (4-Tier Ordinal CNN)",
+      "dataset_provenance": [
+        "RescueNet (Full Dataset (8704 crops))",
+        "Ground-Truth Damage Masks"
+      ],
+      "sha256_checksum": "0582bdc83c67d12b6a27bd635433a993cde9d24d9bef9f28508f93387227a524",
+      "metrics": {
+        "val_damage_accuracy": 0.6484,
+        "val_ordinal_mae": 0.4432,
+        "num_val_crops": 1004
+      },
+      "weights_path": "models/weights/stage2_structural_rescuenet_v2.pt",
+      "is_active": true,
+      "registered_at": 1789548506.4408855,
+      "status": "active",
+      "notes": null
+    },
+    "stage2_road_passability_v2": {
+      "model_id": "stage2_road_passability_v2",
+      "version": "2.0.0",
+      "stage": "stage2_road_passability",
+      "architecture": "RoadPassabilityClassifier (Conv3 + FC)",
+      "dataset_provenance": [
+        "RescueNet (Full Dataset Scenes)",
+        "Road Accessibility Ground Truth"
+      ],
+      "sha256_checksum": "d1fde5cb98396475f65e704d65549e7eb26b8018b8654ced32076190d48e59cb",
+      "metrics": {
+        "val_road_passability_accuracy": 0.7857,
+        "samples_evaluated": 294
+      },
+      "weights_path": "models/weights/stage2_road_passability_v2.pt",
+      "is_active": true,
+      "registered_at": 1789549439.3147924,
       "status": "active",
       "notes": null
     }
