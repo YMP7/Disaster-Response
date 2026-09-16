@@ -839,10 +839,9 @@ class Trainer:
         - Ground truth: Blocked if mask class 8 count >= 50 or blockage ratio > 5%.
         - Prediction: Predicted by RoadPassabilityClassifier directly from the RGB image (no mask cheating).
         """
-        target_dir = base_dir / "RescueNet" if (base_dir / "RescueNet").exists() else base_dir
-        val_org = target_dir / "val" / "val-org-img"
-        val_lbl = target_dir / "val" / "val-label-img"
-        if not val_lbl.exists() or not val_org.exists():
+        val_org, val_lbl = RescueNetDamageDataset._resolve_rescuenet_dirs(base_dir, "val")
+        if val_lbl is None or val_org is None or not val_lbl.exists() or not val_org.exists():
+            print(f"[WARN] RescueNet road validation split not found under {base_dir}")
             return 0.0, 0
 
         if road_model is None:
