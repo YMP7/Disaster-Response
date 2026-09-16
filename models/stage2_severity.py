@@ -5,6 +5,7 @@ and MobileNet edge damage grading (Alsaaran & Soudani 2025).
 
 from typing import Dict, Any, List, Tuple, Optional
 from pathlib import Path
+import json
 import numpy as np
 import cv2
 import torch
@@ -18,6 +19,34 @@ from data_pipeline.schema import (
     RoadSegment,
     BoundingBox
 )
+
+
+def _resolve_weights_path(stage_key: str, fallback_candidates: List[Path]) -> Path:
+    """Dynamically resolves active weights path from model_registry.json,
+    falling back to prioritized version candidates (v2 -> v1).
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    try:
+        reg_file = repo_root / "config" / "model_registry.json"
+        if reg_file.exists():
+            data = json.loads(reg_file.read_text(encoding="utf-8"))
+            active_id = data.get("active_models", {}).get(stage_key)
+            if active_id and active_id in data.get("models", {}):
+                w_str = data["models"][active_id].get("weights_path")
+                if w_str and w_str != "none":
+                    p = Path(w_str)
+                    if p.exists():
+                        return p
+                    if (repo_root / p).exists():
+                        return repo_root / p
+    except Exception:
+        pass
+    for cand in fallback_candidates:
+        if cand.exists():
+            return cand
+        if (repo_root / cand).exists():
+            return repo_root / cand
+    return fallback_candidates[-1] if fallback_candidates else Path("none")
 
 
 class StructuralDamageHead(nn.Module):
@@ -48,7 +77,10 @@ class StructuralDamageHead(nn.Module):
 
         self.has_weights = False
         if load_weights:
-            target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+            target_path = Path(weights_path) if weights_path else _resolve_weights_path(
+                "stage2_severity",
+                [Path("models/weights/stage2_structural_rescuenet_v2.pt"), Path("models/weights/stage2_structural_rescuenet_v1.pt")]
+            )
             if target_path.exists():
                 try:
                     state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
@@ -134,7 +166,10 @@ class FloodSegmentationUNet(nn.Module):
         # Automatic checkpoint resolution
         self.has_weights = False
         if load_weights:
-            target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+            target_path = Path(weights_path) if weights_path else _resolve_weights_path(
+                "stage2_flood_segmentation",
+                [Path("models/weights/stage2_flood_unet_v2.pt"), Path("models/weights/stage2_flood_unet_v1.pt")]
+            )
             if target_path.exists():
                 try:
                     state_dict = torch.load(target_path, map_location="cpu", weights_only=True)
@@ -216,7 +251,10 @@ class RoadPassabilityClassifier(nn.Module):
 
         self.has_weights = False
         if load_weights:
-            target_path = Path(weights_path) if weights_path else self.DEFAULT_WEIGHTS_PATH
+            target_path = Path(weights_path) if weights_path else _resolve_weights_path(
+                "stage2_road_passability",
+                [Path("models/weights/stage2_road_passability_v2.pt"), Path("models/weights/stage2_road_passability_v1.pt")]
+            )
             if target_path.exists():
                 try:
                     state_dict = torch.load(target_path, map_location="cpu", weights_only=True)

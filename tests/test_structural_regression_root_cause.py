@@ -33,6 +33,8 @@ class TestStructuralDamageRootCause:
         """Verifies that load_weights=False strictly isolates new model instances from existing weights."""
         weights_path = Path("models/weights/stage2_structural_rescuenet_v1.pt")
         if not weights_path.exists():
+            weights_path = Path("models/weights/stage2_structural_rescuenet_v2.pt")
+        if not weights_path.exists():
             pytest.skip("Checkpoint does not exist yet.")
 
         # Fresh instance with load_weights=False
@@ -52,11 +54,13 @@ class TestStructuralDamageRootCause:
 
     def test_structural_damage_restored_accuracy_and_mae(self, rescuenet_dir):
         """Verifies that the restored model clears the 55% accuracy threshold and MAE <= 0.60."""
-        val_lbl = rescuenet_dir / "val" / "val-label-img"
-        if not val_lbl.exists():
+        val_org, val_lbl = RescueNetDamageDataset._resolve_rescuenet_dirs(rescuenet_dir, "val")
+        if val_lbl is None or not val_lbl.exists():
             pytest.skip("RescueNet validation split not found.")
 
         weights_path = Path("models/weights/stage2_structural_rescuenet_v1.pt")
+        if not weights_path.exists():
+            weights_path = Path("models/weights/stage2_structural_rescuenet_v2.pt")
         if not weights_path.exists():
             pytest.skip("Trained weights not found.")
 

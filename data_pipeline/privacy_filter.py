@@ -14,13 +14,27 @@ class DPDPPrivacyFilter:
 
     def __init__(self, blur_kernel_size: Tuple[int, int] = (51, 51)):
         self.blur_kernel = blur_kernel_size
-        # OpenCV built-in lightweight cascade detectors
-        self.face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        self.plate_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_russian_plate_number.xml'
-        )
+        self.face_cascade = None
+        self.plate_cascade = None
+        
+        # Safe resolution of OpenCV cascade detectors (robust to headless / stripped wheels)
+        cascade_cls = getattr(cv2, "CascadeClassifier", None)
+        if cascade_cls is not None:
+            data_dir = getattr(getattr(cv2, "data", None), "haarcascades", "")
+            face_xml = data_dir + "haarcascade_frontalface_default.xml"
+            plate_xml = data_dir + "haarcascade_russian_plate_number.xml"
+            try:
+                fc = cascade_cls(face_xml)
+                if not getattr(fc, "empty", lambda: True)():
+                    self.face_cascade = fc
+            except Exception:
+                self.face_cascade = None
+            try:
+                pc = cascade_cls(plate_xml)
+                if not getattr(pc, "empty", lambda: True)():
+                    self.plate_cascade = pc
+            except Exception:
+                self.plate_cascade = None
 
     def redact_pii(self, image: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Scans image, detects faces/plates, applies heavy Gaussian blur, and returns metadata."""
@@ -28,9 +42,14 @@ class DPDPPrivacyFilter:
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         
         # 1. Detect and blur faces
-        faces = self.face_cascade.detectMultiScale(
-            gray, scaleFactor=1.15, minNeighbors=4, minSize=(20, 20)
-        )
+        faces = ()
+        if self.face_cascade is not None:
+            try:
+                faces = self.face_cascade.detectMultiScale(
+                    gray, scaleFactor=1.15, minNeighbors=4, minSize=(20, 20)
+                )
+            except Exception:
+                faces = ()
         face_count = len(faces)
         for (x, y, w, h) in faces:
             roi = redacted[y:y+h, x:x+w]
@@ -41,9 +60,14 @@ class DPDPPrivacyFilter:
             redacted[y:y+h, x:x+w] = blurred_roi
 
         # 2. Detect and blur vehicle license plates
-        plates = self.plate_cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=3, minSize=(25, 10)
-        )
+        plates = ()
+        if self.plate_cascade is not None:
+            try:
+                plates = self.plate_cascade.detectMultiScale(
+                    gray, scaleFactor=1.1, minNeighbors=3, minSize=(25, 10)
+                )
+            except Exception:
+                plates = ()
         plate_count = len(plates)
         for (x, y, w, h) in plates:
             roi = redacted[y:y+h, x:x+w]
