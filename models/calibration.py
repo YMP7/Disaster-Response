@@ -13,12 +13,44 @@ import torch.nn as nn
 class TemperatureScaler(nn.Module):
     """Calibrates model logits via post-hoc Platt / Temperature Scaling."""
 
-    def __init__(self):
+    def __init__(self, init_temperature: float = 1.5):
         super().__init__()
-        self.temperature = nn.Parameter(torch.ones(1) * 1.5)
+        self.temperature = nn.Parameter(torch.ones(1) * init_temperature)
 
     def forward(self, logits: torch.Tensor) -> torch.Tensor:
-        return logits / self.temperature
+        return logits / torch.clamp(self.temperature, min=0.01)
+
+    def fit(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+        max_iter: int = 50,
+        lr: float = 0.01
+    ) -> float:
+        """Fits temperature T on validation logits via NLL loss minimization (Guo et al. 2017)."""
+        nll_criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.LBFGS([self.temperature], lr=lr, max_iter=max_iter)
+
+        def eval_loss():
+            optimizer.zero_grad()
+            scaled = self.forward(logits)
+            loss = nll_criterion(scaled, labels)
+            loss.backward()
+            return loss
+
+        try:
+            optimizer.step(eval_loss)
+        except Exception:
+            # Fallback to Adam if LBFGS encounters singular curvature
+            adam_opt = torch.optim.Adam([self.temperature], lr=lr)
+            for _ in range(max_iter):
+                adam_opt.zero_grad()
+                scaled = self.forward(logits)
+                loss = nll_criterion(scaled, labels)
+                loss.backward()
+                adam_opt.step()
+
+        return float(self.temperature.item())
 
 
 class ReliabilityEvaluator:

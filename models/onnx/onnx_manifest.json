@@ -1,0 +1,84 @@
+{
+  "timestamp": "2026-09-19 14:06:54Z",
+  "platform_version": "2.0.0",
+  "onnx_version": "1.23.0",
+  "onnxruntime_version": "1.30.0",
+  "opset_version": 14,
+  "models": {
+    "stage1_triage": {
+      "model_id": "stage1_mobilenetv3_triage_v2",
+      "file_name": "stage1_mobilenetv3_triage_v2.onnx",
+      "input_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "output_shape": [
+        1,
+        8
+      ],
+      "size_bytes": 4316723,
+      "sha256": "7d87b4fdc08b03157e21a74305d4ea6837e70f180dc855a5271d744858be6a47",
+      "parity_max_diff": 2.1457672119140625e-06,
+      "parity_status": "EXACT_PARITY"
+    },
+    "stage2_structural": {
+      "model_id": "stage2_structural_rescuenet_v2",
+      "file_name": "stage2_structural_rescuenet_v2.onnx",
+      "input_shape": [
+        1,
+        3,
+        64,
+        64
+      ],
+      "output_shape": [
+        1,
+        4
+      ],
+      "size_bytes": 88343,
+      "sha256": "ce7b7d814156cadebe2c2ab0e56ddf61b9de593ee5889a8ca29eafd5d44592a7",
+      "parity_max_diff": 7.62939453125e-06,
+      "parity_status": "EXACT_PARITY"
+    },
+    "stage2_road": {
+      "model_id": "stage2_road_passability_v2",
+      "file_name": "stage2_road_passability_v2.onnx",
+      "input_shape": [
+        1,
+        3,
+        128,
+        128
+      ],
+      "output_shape": [
+        1,
+        2
+      ],
+      "size_bytes": 105387,
+      "sha256": "0403a2cf0442db8d3dc6a4dd438bc918ef8e8b4e77e557817f3e038e44467778",
+      "parity_max_diff": 2.384185791015625e-07,
+      "parity_status": "EXACT_PARITY"
+    },
+    "stage2_flood_unet": {
+      "model_id": "stage2_flood_unet_v2",
+      "file_name": "stage2_flood_unet_v2.onnx",
+      "input_shape": [
+        1,
+        3,
+        128,
+        128
+      ],
+      "output_shape": [
+        1,
+        1,
+        128,
+        128
+      ],
+      "size_bytes": 278113,
+      "sha256": "d91afb9c5be14a820debb6974d88708a5cb7b480d885f4050423cd6b9527f180",
+      "parity_max_diff": 2.0265579223632812e-06,
+      "parity_binary_mask_match": true,
+      "parity_status": "EXACT_PARITY"
+    }
+  }
+}

@@ -15,5 +15,10 @@ rich>=13.0.0
 # Note: pymavlink uses its own built-in MAVLink X.25 CRC calculation; fastcrc is not required.
 pymavlink>=2.4.49
 
+# Edge Model Optimization & ONNX Runtime
+onnx>=1.23.0
+onnxruntime>=1.30.0
+onnxscript>=0.7.2
+
 # Testing & Verification
 pytest>=7.0.0

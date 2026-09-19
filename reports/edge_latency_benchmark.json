@@ -1,0 +1,195 @@
+{
+  "timestamp": "2026-09-19 14:11:33Z",
+  "platform_version": "2.0.0",
+  "hardware_scope": {
+    "execution_environment": "Host CPU (x86_64, Windows)",
+    "onnxruntime_execution_provider": "CPUExecutionProvider",
+    "threads": 4,
+    "jetson_orin_nano_status": "NOT ATTEMPTED (requires physical Jetson ARM64 hardware with JetPack and TensorRT; no synthetic extrapolation factor applied)"
+  },
+  "target_latency_budget_ms": 50.0,
+  "component_benchmarks": {
+    "stage1": {
+      "name": "Stage 1 Triage (MobileNetV3)",
+      "input_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "pytorch_eager": {
+        "mean_ms": 11.364,
+        "median_p50_ms": 11.377,
+        "p90_ms": 12.502,
+        "p95_ms": 13.115,
+        "p99_ms": 13.753,
+        "std_dev_ms": 0.974,
+        "min_ms": 8.569,
+        "max_ms": 13.836,
+        "fps": 88.0
+      },
+      "onnx_runtime": {
+        "mean_ms": 1.739,
+        "median_p50_ms": 1.711,
+        "p90_ms": 1.884,
+        "p95_ms": 1.909,
+        "p99_ms": 2.049,
+        "std_dev_ms": 0.106,
+        "min_ms": 1.53,
+        "max_ms": 2.051,
+        "fps": 575.0
+      },
+      "speedup_ratio": 6.53
+    },
+    "structural": {
+      "name": "Stage 2 Structural (RescueNet)",
+      "input_shape": [
+        1,
+        3,
+        64,
+        64
+      ],
+      "pytorch_eager": {
+        "mean_ms": 2.106,
+        "median_p50_ms": 1.786,
+        "p90_ms": 3.275,
+        "p95_ms": 4.274,
+        "p99_ms": 5.238,
+        "std_dev_ms": 0.984,
+        "min_ms": 1.104,
+        "max_ms": 6.218,
+        "fps": 474.8
+      },
+      "onnx_runtime": {
+        "mean_ms": 0.471,
+        "median_p50_ms": 0.401,
+        "p90_ms": 0.535,
+        "p95_ms": 0.751,
+        "p99_ms": 1.773,
+        "std_dev_ms": 0.446,
+        "min_ms": 0.316,
+        "max_ms": 4.573,
+        "fps": 2122.7
+      },
+      "speedup_ratio": 4.47
+    },
+    "road": {
+      "name": "Stage 2 Road Passability",
+      "input_shape": [
+        1,
+        3,
+        128,
+        128
+      ],
+      "pytorch_eager": {
+        "mean_ms": 4.148,
+        "median_p50_ms": 3.673,
+        "p90_ms": 5.632,
+        "p95_ms": 7.01,
+        "p99_ms": 9.914,
+        "std_dev_ms": 1.958,
+        "min_ms": 2.265,
+        "max_ms": 17.712,
+        "fps": 241.1
+      },
+      "onnx_runtime": {
+        "mean_ms": 0.683,
+        "median_p50_ms": 0.612,
+        "p90_ms": 0.837,
+        "p95_ms": 0.918,
+        "p99_ms": 1.065,
+        "std_dev_ms": 0.14,
+        "min_ms": 0.549,
+        "max_ms": 1.346,
+        "fps": 1463.4
+      },
+      "speedup_ratio": 6.07
+    },
+    "flood_unet": {
+      "name": "Stage 2 Flood U-Net",
+      "input_shape": [
+        1,
+        3,
+        128,
+        128
+      ],
+      "pytorch_eager": {
+        "mean_ms": 8.165,
+        "median_p50_ms": 7.642,
+        "p90_ms": 10.577,
+        "p95_ms": 11.598,
+        "p99_ms": 13.038,
+        "std_dev_ms": 1.833,
+        "min_ms": 5.603,
+        "max_ms": 14.999,
+        "fps": 122.5
+      },
+      "onnx_runtime": {
+        "mean_ms": 3.766,
+        "median_p50_ms": 3.666,
+        "p90_ms": 4.408,
+        "p95_ms": 4.501,
+        "p99_ms": 5.042,
+        "std_dev_ms": 0.549,
+        "min_ms": 3.055,
+        "max_ms": 5.063,
+        "fps": 265.5
+      },
+      "speedup_ratio": 2.17
+    }
+  },
+  "pipeline_benchmarks": {
+    "disaster_flood_pipeline": {
+      "stages": [
+        "stage1_triage",
+        "stage2_flood_unet",
+        "stage2_road_passability"
+      ],
+      "stats": {
+        "mean_ms": 11.43,
+        "median_p50_ms": 11.025,
+        "p90_ms": 13.032,
+        "p95_ms": 13.305,
+        "p99_ms": 17.09,
+        "std_dev_ms": 1.62,
+        "min_ms": 9.511,
+        "max_ms": 22.22,
+        "fps": 87.5
+      },
+      "meets_budget": true
+    },
+    "normal_patrol_early_exit_pipeline": {
+      "stages": [
+        "stage1_triage"
+      ],
+      "stats": {
+        "mean_ms": 4.434,
+        "median_p50_ms": 4.206,
+        "p90_ms": 5.545,
+        "p95_ms": 6.61,
+        "p99_ms": 8.197,
+        "std_dev_ms": 1.152,
+        "min_ms": 3.166,
+        "max_ms": 10.88,
+        "fps": 225.5
+      },
+      "meets_budget": true,
+      "speedup_vs_flood_pipeline": 2.58,
+      "latency_saved_ms": 7.0
+    }
+  },
+  "temperature_calibration": {
+    "fitted_temperature": 1.2503,
+    "pre_calibration": {
+      "expected_calibration_error": 0.5095,
+      "max_calibration_error": 0.7416,
+      "is_well_calibrated": false
+    },
+    "post_calibration": {
+      "expected_calibration_error": 0.4468,
+      "max_calibration_error": 0.6452,
+      "is_well_calibrated": false
+    },
+    "ece_reduction_pct": 12.31
+  }
+}

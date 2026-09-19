@@ -10,6 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2026-09-19
 
 ### Added
+- **Edge Model Optimization & ONNX Runtime Latency Benchmarking (Track 2)**:
+  - Exported all 4 active production v2 model checkpoints to standard ONNX graphs (`opset=14`) at native training input resolutions:
+    - Stage 1 Triage (`stage1_mobilenetv3_triage_v2.onnx`): `(1, 3, 224, 224)`
+    - Stage 2 Structural Damage (`stage2_structural_rescuenet_v2.onnx`): `(1, 3, 64, 64)`
+    - Stage 2 Road Passability (`stage2_road_passability_v2.onnx`): `(1, 3, 128, 128)`
+    - Stage 2 Flood U-Net (`stage2_flood_unet_v2.onnx`): `(1, 3, 128, 128)`
+  - Verified numerical parity against PyTorch eager execution:
+    - Stage 1 Triage: max diff `2.15e-06` (< 1e-4)
+    - Stage 2 Structural: max diff `7.63e-06` (< 1e-4)
+    - Stage 2 Road: max diff `2.38e-07` (< 1e-4)
+    - Stage 2 Flood U-Net: max diff `2.03e-06` (< 1e-3), with 100% exact thresholded binary water mask match (`np.array_equal((pt > 0), (onnx > 0))`).
+  - Implemented `models/onnx_engine.py` (`ONNXInferenceEngine`):
+    - Production ONNX Runtime execution engine with intra-op threading, memory C-contiguity, and session pre-warming.
+    - End-to-end edge pipeline with early-exit routing: normal patrol frames bypass Stage 2 severity analysis completely.
+  - Empirical stopwatch latency benchmarking (`scripts/benchmark_edge_latency.py`, 100 iterations on host CPU):
+    - Stage 1 Triage: PyTorch 11.36 ms -> ONNX 1.74 ms (6.53x speedup, 575.0 FPS)
+    - Stage 2 Structural: PyTorch 2.11 ms -> ONNX 0.47 ms (4.47x speedup, 2,122.7 FPS)
+    - Stage 2 Road: PyTorch 4.15 ms -> ONNX 0.68 ms (6.07x speedup, 1,463.4 FPS)
+    - Stage 2 Flood U-Net: PyTorch 8.16 ms -> ONNX 3.77 ms (2.17x speedup, 265.5 FPS)
+    - End-to-End Flood Pipeline: 11.43 ms mean (87.5 FPS), well within 50 ms budget.
+    - End-to-End Normal Patrol (Early Exit): 4.43 ms mean (225.5 FPS), saving 7.00 ms (2.58x faster than full flood pipeline).
+  - Post-Hoc Temperature Calibration:
+    - Extended `models/calibration.py` `TemperatureScaler` with empirical `fit(logits, labels)` via NLL loss minimization (Guo et al. 2017).
+    - Reduced Expected Calibration Error (ECE) on overconfident predictions from 0.5095 to 0.4468 (12.31% reduction, optimal T = 1.2503).
+  - Rigorous Hardware Transparency Boundary:
+    - Explicitly documented: *"MEASURED on host CPU (x86_64, Windows, 4 threads). Jetson Orin Nano TensorRT FP16: NOT ATTEMPTED (requires physical Jetson ARM64 hardware with JetPack and TensorRT installed). No synthetic mathematical extrapolation factor applied."*
+  - Added comprehensive test suite `tests/test_onnx_edge.py` (12/12 passing). Total suite now at 63/63 passing tests.
 - **PX4 SITL MAVLink v2.0 UDP Socket Integration (Track 3)**:
   - Implemented `drone_abstraction/mavlink_client.py` (`MAVLinkDroneClient`): full-duplex binary MAVLink 2.0 communication over real OS UDP sockets (`udpin:0.0.0.0:14550` or companion port `14540`).
   - Implemented standard MAVLink Mission Protocol handshake: `MISSION_COUNT` -> `MISSION_REQUEST_INT` -> `MISSION_ITEM_INT` -> `MISSION_ACK` with lossy-network retry and timeout recovery.
