@@ -43,14 +43,20 @@ from orchestration.agents import MasterOrchestrator
 from orchestration.hitl_gate import CommandCenterHITLGate, GatedActionType
 from orchestration.audit_log import CryptographicAuditLog
 from analytics.anomaly_detector import DamageAnomalyDetector
+from config.settings import settings
 
 console = Console()
 
 
-def run_full_incident_simulation():
+def run_full_incident_simulation(comm_mode: str = "mock"):
+    comm_mode_clean = comm_mode.lower().strip()
+    is_sitl = comm_mode_clean == "sitl"
+    mode_label = "Real MAVLink UDP Socket (127.0.0.1:14550)" if is_sitl else "Mock In-Memory Harness (Deterministic)"
+
     console.print(Panel.fit(
         "[bold cyan]INDIA DISASTER RESPONSE & AUTONOMOUS DRONE PLATFORM[/bold cyan]\n"
-        "[dim]Safety-Critical, Simulator-First AI Platform (Grounded in MHA SDRF Norms & DGCA Rules 2021)[/dim]",
+        "[dim]Safety-Critical, Simulator-First AI Platform (Grounded in MHA SDRF Norms & DGCA Rules 2021)[/dim]\n"
+        f"[dim yellow]Flight Comm Mode: {mode_label}[/dim yellow]",
         border_style="cyan"
     ))
 
@@ -90,14 +96,22 @@ def run_full_incident_simulation():
     console.print(f"  • Remote Pilot in Command: {dgca_audit['rpic_id']}")
 
     # Step 3: PX4 SITL Flight Simulation & Live Camera Stream
-    console.print("\n[bold yellow]═══ STEP 3: PX4 SITL FLIGHT SIMULATION & LIVE ON-SCENE AGENT ═══[/bold yellow]")
-    sim = DroneSimulatorHarness(synthetic_disaster=alert_event.disaster_class)
+    console.print("\n[bold yellow]═══ STEP 3: FLIGHT SIMULATION & LIVE ON-SCENE AGENT ═══[/bold yellow]")
+    sim_mode = "SITL_UDP" if is_sitl else "MOCK_HARNESS"
+    sim = DroneSimulatorHarness(
+        synthetic_disaster=alert_event.disaster_class,
+        comm_mode=sim_mode,
+        udp_port=14550
+    )
     drone_agent = OnSceneDroneAgent()
 
     survey_frames = []
     agent_decisions = []
 
-    console.print("  [dim]Drone executing automated MAVLink lawnmower grid... streaming telemetry & frames...[/dim]")
+    if is_sitl:
+        console.print("  [dim]Drone connecting to PX4 SITL over real MAVLink UDP socket (127.0.0.1:14550)...[/dim]")
+    else:
+        console.print("  [dim]Drone executing automated MAVLink lawnmower grid (mock in-memory harness)...[/dim]")
     for telemetry, frame_rgb, status in sim.execute_mission_stream(mission):
         # Apply DPDP automated privacy blurring on incoming feed
         redacted_frame, priv_meta = privacy.redact_pii(frame_rgb)
@@ -221,4 +235,13 @@ def run_full_incident_simulation():
 
 
 if __name__ == "__main__":
-    run_full_incident_simulation()
+    import argparse
+    parser = argparse.ArgumentParser(description="India Disaster Response Platform — Incident Lifecycle Simulation")
+    parser.add_argument(
+        "--comm-mode",
+        choices=["mock", "sitl"],
+        default="mock",
+        help="Flight communication mode: 'mock' (deterministic in-memory) or 'sitl' (real MAVLink UDP socket)"
+    )
+    args = parser.parse_args()
+    run_full_incident_simulation(comm_mode=args.comm_mode)

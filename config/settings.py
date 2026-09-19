@@ -60,6 +60,17 @@ class Settings(BaseModel):
     monitored_radius_km: float = 75.0
     sachet_polling_interval_sec: int = 30
     
+    
+    # Drone Communication & Autopilot Interface
+    # Safe default: MOCK_HARNESS (zero network side-effects)
+    # Options: "MOCK_HARNESS", "SITL_UDP", "PX4_PHYSICAL"
+    drone_comm_mode: str = "MOCK_HARNESS"
+    mavlink_connection_str: str = "udpin:0.0.0.0:14550"
+    mavlink_target_system: int = 1
+    mavlink_target_component: int = 1
+    mavlink_heartbeat_timeout_sec: float = 5.0
+    mavlink_mission_ack_timeout_sec: float = 5.0
+
     # Norms and Airspace
     sdrf_rates: SDRFNorms = Field(default_factory=SDRFNorms)
     dgca_rules: DGCARules = Field(default_factory=DGCARules)

@@ -20,6 +20,18 @@ class MAVCmdType(str, Enum):
     IMAGE_STOP_CAPTURE = "MAV_CMD_IMAGE_STOP_CAPTURE"
 
 
+# Numerical MAVLink Command IDs per MAVLink v2.0 Common Spec
+MAV_CMD_NUMERICAL_MAP = {
+    MAVCmdType.WAYPOINT: 16,               # MAV_CMD_NAV_WAYPOINT
+    MAVCmdType.LOITER_UNLIM: 17,           # MAV_CMD_NAV_LOITER_UNLIM
+    MAVCmdType.RETURN_TO_LAUNCH: 20,       # MAV_CMD_NAV_RETURN_TO_LAUNCH
+    MAVCmdType.TAKEOFF: 22,                # MAV_CMD_NAV_TAKEOFF
+    MAVCmdType.SET_CAM_MODE: 530,          # MAV_CMD_SET_CAMERA_MODE
+    MAVCmdType.IMAGE_START_CAPTURE: 2000,  # MAV_CMD_IMAGE_START_CAPTURE
+    MAVCmdType.IMAGE_STOP_CAPTURE: 2001,   # MAV_CMD_IMAGE_STOP_CAPTURE
+}
+
+
 class MissionWaypoint(BaseModel):
     seq: int
     command: MAVCmdType
@@ -29,6 +41,11 @@ class MissionWaypoint(BaseModel):
     speed_mps: float = 8.0
     hold_time_sec: float = 0.0
     sensor_capture: bool = True
+
+    @property
+    def command_id(self) -> int:
+        """Returns standard MAVLink uint16 numerical command ID."""
+        return MAV_CMD_NUMERICAL_MAP.get(self.command, 16)
 
 
 class DroneMissionContract(BaseModel):
@@ -56,14 +73,15 @@ class DroneMissionContract(BaseModel):
                 "seq": wp.seq,
                 "frame": 3,  # MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
                 "command": wp.command.value,
+                "command_id": wp.command_id,
                 "current": 1 if wp.seq == 0 else 0,
                 "autocontinue": 1,
                 "param1": wp.hold_time_sec,
                 "param2": 2.0,  # Accept radius meters
                 "param3": 0.0,
                 "param4": 0.0,
-                "x": int(wp.latitude * 1e7),
-                "y": int(wp.longitude * 1e7),
+                "x": int(round(wp.latitude * 1e7)),
+                "y": int(round(wp.longitude * 1e7)),
                 "z": float(wp.altitude_agl_m)
             })
         return items

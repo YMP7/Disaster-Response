@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2026-09-19
 
 ### Added
+- **PX4 SITL MAVLink v2.0 UDP Socket Integration (Track 3)**:
+  - Implemented `drone_abstraction/mavlink_client.py` (`MAVLinkDroneClient`): full-duplex binary MAVLink 2.0 communication over real OS UDP sockets (`udpin:0.0.0.0:14550` or companion port `14540`).
+  - Implemented standard MAVLink Mission Protocol handshake: `MISSION_COUNT` -> `MISSION_REQUEST_INT` -> `MISSION_ITEM_INT` -> `MISSION_ACK` with lossy-network retry and timeout recovery.
+  - Implemented `drone_abstraction/sitl_server.py` (`PX4SITLEmulator`): standalone autopilot simulator emitting 1 Hz `HEARTBEAT` (`MAV_AUTOPILOT_PX4`, `MAV_TYPE_QUADROTOR`), waypoint execution physics, and 5 Hz `GLOBAL_POSITION_INT` / `SYS_STATUS` telemetry frames.
+  - Added `tests/test_mavlink_sitl.py` verifying full-duplex transmission, arm/disarm/takeoff/RTL command sequences, heartbeat loss detection, and lossy packet-drop recovery over ephemeral loopback UDP ports.
+  - Added CLI flag `--comm-mode=sitl` to `main.py` while ensuring `--comm-mode=mock` remains the deterministic, zero-network safe default.
+  - Documented explicit scope boundary across docstrings and test assertions:
+    `"verified: correct MAVLink 2.0 protocol implementation over real UDP socket; not yet verified: compatibility with actual PX4 Autopilot firmware."`
 - **Centralized Platform SemVer 2.0.0**: Single source of truth defined in `config/version.py` (`__version__ = "2.0.0"`, `__version_info__ = (2, 0, 0)`).
 - **Genuine Ed25519 Asymmetric Digital Signatures (RFC 8032)**:
   - Upgraded `orchestration/hitl_gate.py` with real 64-byte Ed25519 asymmetric cryptographic signing and verification over canonical request payloads.

@@ -1,0 +1,19 @@
+# Core Deep Learning & Computer Vision
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# API & Orchestration
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+cryptography>=42.0.0
+rich>=13.0.0
+
+# Drone MAVLink Protocol
+# Note: pymavlink uses its own built-in MAVLink X.25 CRC calculation; fastcrc is not required.
+pymavlink>=2.4.49
+
+# Testing & Verification
+pytest>=7.0.0
