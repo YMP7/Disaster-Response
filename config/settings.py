@@ -6,6 +6,7 @@ and airspace boundaries per DGCA Drone Rules 2021.
 from pathlib import Path
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
+from config.version import __version__
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -43,7 +44,7 @@ class DGCARules(BaseModel):
 
 class Settings(BaseModel):
     project_name: str = "DisasterResponseAI-India"
-    version: str = "1.0.0"
+    version: str = __version__
     base_dir: Path = BASE_DIR
     
     # Storage & Data Paths

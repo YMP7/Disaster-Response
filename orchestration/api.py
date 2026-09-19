@@ -10,6 +10,7 @@ import numpy as np
 import base64
 import cv2
 
+from config.version import __version__
 from data_pipeline.schema import DisasterClass, GeoPoint
 from live_monitoring.alert_service import LiveMonitoringService, TypedAlertEvent
 from drone_abstraction.protocol import DroneMissionContract
@@ -21,7 +22,7 @@ from models.registry import ModelRegistry
 
 app = FastAPI(
     title="India Disaster Response AI Platform API",
-    version="1.0.0",
+    version=__version__,
     description="Modular AI system for disaster classification, drone orchestration, and SDRF fund analytics"
 )
 
@@ -60,6 +61,7 @@ def get_system_status():
     """System health check and active model registry pointers."""
     return {
         "status": "operational",
+        "platform_version": __version__,
         "active_models": model_registry.active_models,
         "pending_hitl_approvals": len(hitl_gate.list_pending()),
         "supported_languages": ["en", "hi", "or", "ml", "bn", "ta", "te"]
@@ -138,3 +140,107 @@ def verify_audit_ledger():
         "blocks_audited": count,
         "verification_summary": message
     }
+
+
+class ModelRollbackRequest(BaseModel):
+    stage: str
+    target: str  # version string (e.g. '1.1.0') or model_id (e.g. 'stage1_mobilenetv3_triage_v1')
+    operator_id: str
+    reason: str = "Rollback requested by command center operator"
+
+
+class ModelActivateRequest(BaseModel):
+    model_id: str
+    operator_id: str
+    reason: str = "Model activation requested by command center operator"
+
+
+@app.get("/api/v1/models/versions")
+def list_model_versions(stage: Optional[str] = None):
+    """Enumerates registered model artifact versions, active status, metrics, and checksums."""
+    versions = model_registry.list_versions(stage=stage)
+    return {
+        "platform_version": __version__,
+        "stage_filter": stage,
+        "total_versions": len(versions),
+        "versions": versions
+    }
+
+
+@app.get("/api/v1/models/compare")
+def compare_model_versions(stage: str):
+    """Compares registered versions and metrics for a specific pipeline stage."""
+    comparison = model_registry.get_version_comparison(stage=stage)
+    if comparison["num_versions"] == 0:
+        raise HTTPException(status_code=404, detail=f"No models registered for stage '{stage}'")
+    return comparison
+
+
+@app.post("/api/v1/models/activate")
+def activate_model_endpoint(req: ModelActivateRequest):
+    """Activates a designated model artifact and records a cryptographic audit entry."""
+    try:
+        activated = model_registry.activate_model(req.model_id)
+        audit_log.append_block(
+            event_type="MODEL_ACTIVATION",
+            actor=req.operator_id,
+            details={
+                "model_id": activated.model_id,
+                "version": activated.version,
+                "stage": activated.stage,
+                "sha256": activated.sha256_checksum,
+                "reason": req.reason
+            }
+        )
+        return {
+            "status": "activated",
+            "active_model": activated.model_dump(),
+            "operator_id": req.operator_id
+        }
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/api/v1/models/rollback")
+def rollback_model_stage(req: ModelRollbackRequest):
+    """Rolls back the active model for a stage to a prior version or artifact ID with audit log."""
+    prev_active = model_registry.get_active_model(req.stage)
+    rolled_back = model_registry.rollback(stage=req.stage, target=req.target)
+    if not rolled_back:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No matching model found for stage '{req.stage}' with target '{req.target}'"
+        )
+    audit_log.append_block(
+        event_type="MODEL_ROLLBACK",
+        actor=req.operator_id,
+        details={
+            "stage": req.stage,
+            "target": req.target,
+            "previous_model_id": prev_active.model_id if prev_active else None,
+            "previous_version": prev_active.version if prev_active else None,
+            "new_model_id": rolled_back.model_id,
+            "new_version": rolled_back.version,
+            "new_sha256": rolled_back.sha256_checksum,
+            "reason": req.reason
+        }
+    )
+    return {
+        "status": "rolled_back",
+        "stage": req.stage,
+        "active_model": rolled_back.model_dump(),
+        "operator_id": req.operator_id
+    }
+
+
+@app.get("/api/v1/models/verify")
+def verify_model_checksums(stage: Optional[str] = None):
+    """Verifies that registered model weights exist on disk and match their SHA-256 checksums."""
+    report = model_registry.verify_checksums(stage=stage)
+    all_valid = all(v.get("valid", False) for v in report.values())
+    return {
+        "all_valid": all_valid,
+        "models_checked": len(report),
+        "results": report
+    }
+

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "disaster_classes": {
     "flood": {
       "display_name": "Flood & Inundation",
