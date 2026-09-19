@@ -147,12 +147,16 @@ def run_real_pipeline():
             img_bgr = cv2.imread(str(r_img_p))
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
             passability, prob = road_classifier.classify_passability(img_rgb)
+            uncertainty_status = "ACCEPTED_CONFIDENT" if prob >= 0.65 else "UNCERTAIN_NEEDS_REVIEW"
             road_results.append({
                 "image_file": r_img_p.name,
                 "passability": passability.value,
-                "confidence": round(float(prob), 4)
+                "confidence": round(float(prob), 4),
+                "uncertainty_status": uncertainty_status,
+                "review_required": prob < 0.65,
+                "note": "Confidence below operational threshold (65%); routed to human aerial analyst for corridor verification" if prob < 0.65 else "Cleared high-confidence corridor check"
             })
-            print(f"  • Road Passability [{r_img_p.name}]: {passability.value.upper()} ({prob*100:.1f}% confidence)")
+            print(f"  • Road Passability [{r_img_p.name}]: {passability.value.upper()} ({prob*100:.1f}% confidence) -> [{uncertainty_status}]")
 
         # Test real building structural damage on building crop
         if road_scenes:
@@ -234,6 +238,8 @@ def run_real_pipeline():
     redacted_frame, priv_meta = privacy.redact_pii(test_img_with_pii)
     audit_report["audits"]["dpdp_privacy_redaction"] = {
         "status": "compliant",
+        "dataset_type": "synthetic_pii_injection_on_aerial_background",
+        "evaluation_note": "Evaluated on synthetic facial and license-plate markers drawn on held-out FloodNet aerial scene. (Practical limitation: no publicly labeled Indian disaster drone dataset contains real identifiable civilian PII). Verifies OpenCV Haar cascade detection and pixelation.",
         "pii_detected": priv_meta["total_pii_anonymized"],
         "faces_blurred": priv_meta["faces_redacted"],
         "plates_blurred": priv_meta["plates_redacted"],
@@ -392,15 +398,24 @@ def run_real_pipeline():
     )
     print(f"  • Pending Request ID: {approval_req.request_id}")
 
-    # Officer signs off
+    # Officer cryptographically signs off with Ed25519 asymmetric signature
+    operator_id = "OFFICER_PATNAIK_SRC_ODISHA"
+    ed25519_sig = hitl_gate.sign_request(
+        request_id=approval_req.request_id,
+        approve=True,
+        operator_id=operator_id
+    )
     approved = hitl_gate.review_request(
         request_id=approval_req.request_id,
         approve=True,
-        operator_id="OFFICER_PATNAIK_SRC_ODISHA",
-        operator_signature="ED25519_SIG_PATNAIK_VALIDATED_20260919",
+        operator_id=operator_id,
+        operator_signature=ed25519_sig,
         comments="Ground verification sample matches aerial CV assessment within 5% tolerance. Disbursed."
     )
+    is_valid_sig = hitl_gate.verify_request_signature(approved)
     print(f"  • Officer Sign-off: {approved.status.upper()} by {approved.reviewed_by}")
+    print(f"  • Ed25519 Digital Signature: {approved.operator_signature[:24]}... (128-hex chars / 64 bytes)")
+    print(f"  • Non-repudiation Verified: {is_valid_sig} (Public Key: {approved.operator_public_key[:24]}...)")
 
     # Verify Cryptographic Audit Chain
     is_intact, block_count, integrity_msg = audit_log.verify_integrity()
@@ -408,7 +423,11 @@ def run_real_pipeline():
         "ledger_file": str(audit_trail_path.name),
         "is_intact": is_intact,
         "blocks_audited": block_count,
-        "verification_message": integrity_msg
+        "verification_message": integrity_msg,
+        "signature_algorithm": "Ed25519 (RFC 8032)",
+        "officer_signature": approved.operator_signature,
+        "officer_public_key": approved.operator_public_key,
+        "non_repudiation_verified": is_valid_sig
     }
     print(f"  • Cryptographic Hash Chain: {'INTACT (100% Verified)' if is_intact else 'TAMPERED'} ({block_count} SHA-256 blocks chained)")
 

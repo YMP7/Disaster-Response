@@ -263,21 +263,41 @@ class TestAnalyticsAndGovernance:
         assert req.status == "PENDING"
         assert len(gate.list_pending()) == 1
 
-        # Officer signs off
+        # 1. Attempt review with invalid / forged signature -> MUST REJECT
+        with pytest.raises(ValueError, match="Cryptographic Ed25519 verification FAILED"):
+            gate.review_request(
+                request_id=req.request_id,
+                approve=True,
+                operator_id="OFFICER_PATNAIK_01",
+                operator_signature="ED25519_SIG_PATNAIK_FORGED_STRING_NOT_HEX",
+                comments="Forged signature attempt"
+            )
+
+        # 2. Officer generates real 64-byte Ed25519 cryptographic signature
+        ed25519_sig = gate.sign_request(
+            request_id=req.request_id,
+            approve=True,
+            operator_id="OFFICER_PATNAIK_01"
+        )
+        assert len(ed25519_sig) == 128  # 64 bytes hex-encoded
+
+        # 3. Officer signs off with genuine signature
         reviewed = gate.review_request(
             request_id=req.request_id,
             approve=True,
             operator_id="OFFICER_PATNAIK_01",
-            operator_signature="SIG_ECDSA_VALIDATED_9942",
+            operator_signature=ed25519_sig,
             comments="Clear weather, mission approved."
         )
         assert reviewed.status == "APPROVED"
         assert len(gate.list_pending()) == 0
+        assert reviewed.operator_public_key is not None
+        assert gate.verify_request_signature(reviewed) is True
 
         # Verify cryptographic chain integrity
         is_intact, count, msg = audit.verify_integrity()
         assert is_intact is True
-        assert count == 2  # 1 proposal + 1 approval
+        assert count == 3  # 1 proposal + 1 rejected violation audit + 1 valid approval
 
     def test_extensibility_plugin_registry(self):
         plugin = plugin_registry.get_disaster_head("industrial_chemical_toxic_plume")

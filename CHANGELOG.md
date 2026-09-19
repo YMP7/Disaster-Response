@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Centralized Platform SemVer 2.0.0**: Single source of truth defined in `config/version.py` (`__version__ = "2.0.0"`, `__version_info__ = (2, 0, 0)`).
+- **Genuine Ed25519 Asymmetric Digital Signatures (RFC 8032)**:
+  - Upgraded `orchestration/hitl_gate.py` with real 64-byte Ed25519 asymmetric cryptographic signing and verification over canonical request payloads.
+  - Implemented `OperatorKeyStore` with pre-registered and deterministic tactical officer key provisioning.
+  - Hardened non-repudiation: actions (fund releases, drone dispatches) are rejected with `ValueError` and logged as security violations if the signature fails cryptographic verification or the payload was tampered.
+- **Road Passability Uncertainty Gating (Axiom 3)**:
+  - Low-confidence road corridor predictions (<65%) are systematically routed to `UNCERTAIN_NEEDS_REVIEW` for manual aerial analyst confirmation rather than accepted as unverified operational truth.
+- **DPDP Practical Limitation Transparency**:
+  - Explicitly tagged DPDP privacy test data as synthetic PII overlays on real aerial backgrounds, ensuring honest evidentiary reporting.
 - **Comprehensive Model Registry Version Management**:
   - `list_versions(stage)`: Enumerates all registered model artifacts, active status, metrics, and checksums.
   - `get_active_version(stage)`: Returns the active SemVer for a pipeline stage.

@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "timestamp": 1789818181.1681025,
-    "iso_time": "2026-09-19T11:43:01Z",
+    "timestamp": 1789820576.0573096,
+    "iso_time": "2026-09-19T12:22:56Z",
     "platform": "India Disaster Response AI Platform (Simulator-First & Zero-Hardware)",
     "compliance": [
       "DGCA Drone Rules 2021",
@@ -69,17 +69,26 @@
         {
           "image_file": "10781.jpg",
           "passability": "road_blocked",
-          "confidence": 0.7152
+          "confidence": 0.7152,
+          "uncertainty_status": "ACCEPTED_CONFIDENT",
+          "review_required": false,
+          "note": "Cleared high-confidence corridor check"
         },
         {
           "image_file": "10793.jpg",
           "passability": "road_blocked",
-          "confidence": 0.6189
+          "confidence": 0.6189,
+          "uncertainty_status": "UNCERTAIN_NEEDS_REVIEW",
+          "review_required": true,
+          "note": "Confidence below operational threshold (65%); routed to human aerial analyst for corridor verification"
         },
         {
           "image_file": "10803.jpg",
           "passability": "road_clear",
-          "confidence": 0.5216
+          "confidence": 0.5216,
+          "uncertainty_status": "UNCERTAIN_NEEDS_REVIEW",
+          "review_required": true,
+          "note": "Confidence below operational threshold (65%); routed to human aerial analyst for corridor verification"
         }
       ],
       "structural_damage_sample": [
@@ -116,6 +125,8 @@
     ],
     "dpdp_privacy_redaction": {
       "status": "compliant",
+      "dataset_type": "synthetic_pii_injection_on_aerial_background",
+      "evaluation_note": "Evaluated on synthetic facial and license-plate markers drawn on held-out FloodNet aerial scene. (Practical limitation: no publicly labeled Indian disaster drone dataset contains real identifiable civilian PII). Verifies OpenCV Haar cascade detection and pixelation.",
       "pii_detected": 2,
       "faces_blurred": 2,
       "plates_blurred": 0,
@@ -331,7 +342,11 @@
       "ledger_file": "audit_trail_real.jsonl",
       "is_intact": true,
       "blocks_audited": 4,
-      "verification_message": "All 4 blocks cryptographically verified intact."
+      "verification_message": "All 4 blocks cryptographically verified intact.",
+      "signature_algorithm": "Ed25519 (RFC 8032)",
+      "officer_signature": "014473365602d7d5681f174685ef27e55f83d40b39c7a8053e7353c90cc48a8e63be36e37c84e6329f32a0f7d4564cb712d35954f6ff43516c7e4bcfd0a63d09",
+      "officer_public_key": "d8c06061a361786fb43ff616a42c9faab6564b90ea6038b37b54b8fd0b39b3b2",
+      "non_repudiation_verified": true
     }
   }
 }

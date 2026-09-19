@@ -190,16 +190,24 @@ def run_full_incident_simulation():
     for p in pending:
         console.print(f"    • [{p.status}] {p.request_id}: {p.summary}")
 
-    # Officer reviews and approves
+    # Officer cryptographically signs and authorizes
     req_to_approve = pending[0]
+    operator_id = "OFFICER_PATNAIK_SRC_ODISHA"
+    ed25519_sig = hitl_gate.sign_request(
+        request_id=req_to_approve.request_id,
+        approve=True,
+        operator_id=operator_id
+    )
     reviewed = hitl_gate.review_request(
         request_id=req_to_approve.request_id,
         approve=True,
-        operator_id="OFFICER_PATNAIK_SRC_ODISHA",
-        operator_signature="SIG_ECDSA_OFFICER_PATNAIK_0991823",
+        operator_id=operator_id,
+        operator_signature=ed25519_sig,
         comments="Damage and SDRF schedule verified against aerial computer vision. Authorized for initial tranche release."
     )
     console.print(f"✓ Officer Action Executed: [bold green]{reviewed.status}[/bold green] by {reviewed.reviewed_by}")
+    console.print(f"  [dim]Ed25519 Digital Signature: {reviewed.operator_signature[:24]}... (64 bytes)[/dim]")
+    console.print(f"  [dim]Verified Public Key:       {reviewed.operator_public_key[:24]}...[/dim]")
 
     # Verify Cryptographic Hash Chain Integrity
     is_intact, blocks_audited, msg = audit_log.verify_integrity()
