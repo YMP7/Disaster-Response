@@ -176,3 +176,55 @@ class TestVersionManagementAPI:
         data = resp.json()
         assert data["all_valid"] is True
         assert data["models_checked"] >= 8
+
+    def test_api_hitl_review_with_ed25519_and_tamper_rejection(self, client):
+        from orchestration.api import hitl_gate
+        from orchestration.hitl_gate import GatedActionType
+
+        # Submit action to HITL queue
+        req = hitl_gate.submit_for_approval(
+            action_type=GatedActionType.FUND_RELEASE,
+            initiating_agent="APITester",
+            target_zone_id="zone_api_test",
+            summary="Emergency relief disbursement test",
+            payload={"relief_amount_inr": 50000}
+        )
+
+        # 1. Attempt review with forged signature -> MUST return 403 Forbidden
+        forged_payload = {
+            "request_id": req.request_id,
+            "approve": True,
+            "operator_id": "OFFICER_PATNAIK_SRC_ODISHA",
+            "operator_signature": "ED25519_SIG_PATNAIK_VALIDATED_20260919",
+            "comments": "Testing fake signature rejection"
+        }
+        resp_forged = client.post("/api/v1/hitl/review", json=forged_payload)
+        assert resp_forged.status_code == 403
+        assert "Cryptographic Ed25519 verification FAILED" in resp_forged.json()["detail"]
+
+        # 2. Generate genuine Ed25519 signature and submit -> MUST succeed (200 OK)
+        real_sig = hitl_gate.sign_request(
+            request_id=req.request_id,
+            approve=True,
+            operator_id="OFFICER_PATNAIK_SRC_ODISHA"
+        )
+        valid_payload = {
+            "request_id": req.request_id,
+            "approve": True,
+            "operator_id": "OFFICER_PATNAIK_SRC_ODISHA",
+            "operator_signature": real_sig,
+            "comments": "Statutory review passed, authorized."
+        }
+        resp_valid = client.post("/api/v1/hitl/review", json=valid_payload)
+        assert resp_valid.status_code == 200
+        data = resp_valid.json()
+        assert data["status"] == "success"
+        assert data["request"]["status"] == "APPROVED"
+        assert len(data["request"]["operator_signature"]) == 128
+
+    def test_key_custody_production_mode(self):
+        from orchestration.hitl_gate import OperatorKeyStore
+        prod_store = OperatorKeyStore(allow_simulated_keys=False)
+        with pytest.raises(RuntimeError, match="Simulated key derivation is disabled in production mode"):
+            prod_store.get_tactical_officer_private_key("OFFICER_PATNAIK_SRC_ODISHA")
+

@@ -124,6 +124,8 @@ def review_hitl_action(req: HITLReviewRequest):
         return {"status": "success", "request": updated.model_dump()}
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 
 @app.get("/api/v1/hitl/pending")

@@ -135,10 +135,25 @@ class OperatorKeyStore:
     """Manages registered Ed25519 public keys for authorized Command Center officers.
     Guarantees non-repudiation: actions can only be approved by officers with
     verified, pre-registered Ed25519 public keys.
+
+    KEY CUSTODY & PRODUCTION NON-REPUDIATION SPECIFICATION:
+    -------------------------------------------------------
+    In this prototype / simulation environment, `get_tactical_officer_private_key`
+    deterministically derives test keys so headless test suites, CLI simulations,
+    and automated benchmarks can generate RFC 8032 compliant 64-byte signatures.
+
+    IN PRODUCTION DEPLOYMENT:
+    1. Private keys MUST NEVER reside on or be derived by the central verification server.
+    2. Private keys MUST be held in client-side Hardware Security Modules (HSMs),
+       FIPS 140-2 Level 3 physical tokens (e.g. YubiKey 5 Series PIV/PKCS#11),
+       or hardware Secure Enclaves (e.g., Apple Secure Enclave, Android StrongBox).
+    3. The verification server only ever ingests and stores public keys in `OperatorKeyStore`.
+    4. Set `allow_simulated_keys = False` in production to strictly prevent in-process key derivation.
     """
 
-    def __init__(self, key_file: Optional[Path] = None):
+    def __init__(self, key_file: Optional[Path] = None, allow_simulated_keys: bool = True):
         self.key_file = key_file or Path("config/authorized_operators.json")
+        self.allow_simulated_keys = allow_simulated_keys
         self._public_keys: Dict[str, ed25519.Ed25519PublicKey] = {}
         self._load_keys()
 
@@ -154,7 +169,8 @@ class OperatorKeyStore:
                 pass
 
         # Seed standard tactical command officers deterministically if not yet registered
-        self._seed_default_tactical_officers()
+        if self.allow_simulated_keys:
+            self._seed_default_tactical_officers()
 
     def _seed_default_tactical_officers(self):
         """Deterministically provisions standard tactical officers for seamless verification."""
@@ -170,11 +186,15 @@ class OperatorKeyStore:
                 priv = self.get_tactical_officer_private_key(op_id)
                 self._public_keys[op_id] = priv.public_key()
 
-    @staticmethod
-    def get_tactical_officer_private_key(operator_id: str) -> ed25519.Ed25519PrivateKey:
+    def get_tactical_officer_private_key(self, operator_id: str) -> ed25519.Ed25519PrivateKey:
         """Derives a deterministic 32-byte Ed25519 private key for standard tactical command officers.
-        Used for authorized simulated operations, tests, and CLI execution.
+        Used strictly for authorized simulation, tests, and CLI execution.
         """
+        if not self.allow_simulated_keys:
+            raise RuntimeError(
+                f"Simulated key derivation is disabled in production mode. "
+                f"Officer '{operator_id}' must sign decisions using a client-side HSM or PKCS#11 hardware token."
+            )
         seed = hashlib.sha256(f"GOV_INDIA_MHA_NDRF_TACTICAL_OFFICER_ED25519_SEED:{operator_id}".encode("utf-8")).digest()
         return ed25519.Ed25519PrivateKey.from_private_bytes(seed)
 
