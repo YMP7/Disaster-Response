@@ -15,8 +15,18 @@
     "weights_path": "models/weights/stage1_mobilenetv3_india_v2.pt"
   },
   "stage2_rescuenet": {
-    "status": "skipped",
-    "reason": "no valid crops extracted"
+    "status": "success",
+    "model_id": "stage2_structural_rescuenet_v2",
+    "version": "2.0.0",
+    "metrics": {
+      "val_damage_accuracy": 0.6484,
+      "val_ordinal_mae": 0.4432,
+      "val_road_passability_accuracy": 0.7857,
+      "road_passability_status": "active",
+      "num_val_crops": 1004,
+      "num_road_eval_scenes": 294
+    },
+    "weights_path": "models/weights/stage2_structural_rescuenet_v2.pt"
   },
   "stage2_flood_unet": {
     "status": "success",

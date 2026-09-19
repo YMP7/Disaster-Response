@@ -8,9 +8,9 @@ from enum import Enum
 from typing import Dict, Any, List, Optional
 import numpy as np
 from pydantic import BaseModel
-from data_pipeline.schema import DisasterClass, DamageGrade, TelemetryFrame
+from data_pipeline.schema import DisasterClass, DamageGrade, TelemetryFrame, RoadPassability
 from models.stage1_classifier import DisasterTriageEngine
-from models.stage2_severity import FloodSeverityHead, StructuralDamageHead
+from models.stage2_severity import FloodSeverityHead, StructuralDamageHead, RoadPassabilityClassifier
 
 
 class DroneActionType(str, Enum):
@@ -37,7 +37,9 @@ class OnSceneDroneAgent:
 
     def __init__(self):
         self.triage_engine = DisasterTriageEngine()
-        self.flood_head = FloodSeverityHead()
+        self.flood_head = FloodSeverityHead(use_road_classifier=True)
+        self.structural_head = StructuralDamageHead()
+        self.road_classifier = RoadPassabilityClassifier()
         self.hotspots: List[Dict[str, Any]] = []
 
     def evaluate_live_frame(
@@ -78,6 +80,7 @@ class OnSceneDroneAgent:
             sev = self.flood_head.analyze(frame_rgb)
             water_pct = sev["water_extent_percentage"]
             flooded_bld = sev["buildings_flooded"]
+            road_stat = sev.get("road_passability", RoadPassability.ROAD_CLEAR.value)
 
             if flooded_bld >= 2 and water_pct > 40.0:
                 hotspot = {
@@ -85,7 +88,8 @@ class OnSceneDroneAgent:
                     "lon": telemetry.gps.longitude,
                     "alt_agl": telemetry.altitude_agl_m,
                     "water_extent_pct": water_pct,
-                    "submerged_structures": flooded_bld
+                    "submerged_structures": flooded_bld,
+                    "road_passability": road_stat,
                 }
                 self.hotspots.append(hotspot)
 
@@ -99,6 +103,48 @@ class OnSceneDroneAgent:
                     hotspot_coordinates={"lat": telemetry.gps.latitude, "lon": telemetry.gps.longitude},
                     telemetry_snapshot=telemetry.model_dump()
                 )
+
+            if road_stat == RoadPassability.ROAD_BLOCKED.value:
+                hotspot = {
+                    "lat": telemetry.gps.latitude,
+                    "lon": telemetry.gps.longitude,
+                    "alt_agl": telemetry.altitude_agl_m,
+                    "event": "severed_road_corridor",
+                    "water_extent_pct": water_pct,
+                }
+                self.hotspots.append(hotspot)
+                return DroneActionDecision(
+                    decision_id=f"act_{telemetry.frame_id}",
+                    action=DroneActionType.MARK_GPS_HOTSPOT,
+                    confidence=0.88,
+                    justification=f"Submerged or blocked evacuation corridor detected ({water_pct}% inundation). Waypoint tagged.",
+                    requires_human_approval=False,
+                    hotspot_coordinates={"lat": telemetry.gps.latitude, "lon": telemetry.gps.longitude},
+                    telemetry_snapshot=telemetry.model_dump()
+                )
+
+        # Multi-hazard evaluation for structural collapse, cyclones, and landslides
+        if disaster_class in [DisasterClass.EARTHQUAKE_COLLAPSE, DisasterClass.CYCLONE_STORM, DisasterClass.LANDSLIDE]:
+            if self.road_classifier.has_weights:
+                road_status, road_prob = self.road_classifier.classify_passability(frame_rgb)
+                if road_status == RoadPassability.ROAD_BLOCKED and road_prob > 0.70:
+                    hotspot = {
+                        "lat": telemetry.gps.latitude,
+                        "lon": telemetry.gps.longitude,
+                        "alt_agl": telemetry.altitude_agl_m,
+                        "event": "blocked_transportation_corridor",
+                        "confidence": road_prob,
+                    }
+                    self.hotspots.append(hotspot)
+                    return DroneActionDecision(
+                        decision_id=f"act_{telemetry.frame_id}",
+                        action=DroneActionType.MARK_GPS_HOTSPOT,
+                        confidence=road_prob,
+                        justification=f"Road blockage confirmed via on-scene classifier ({road_prob*100:.1f}% conf). Critical corridor flagged.",
+                        requires_human_approval=False,
+                        hotspot_coordinates={"lat": telemetry.gps.latitude, "lon": telemetry.gps.longitude},
+                        telemetry_snapshot=telemetry.model_dump()
+                    )
 
         # Standard operating procedure: continue surveying current mission grid
         return DroneActionDecision(

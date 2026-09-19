@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "total_models": 9,
+  "active_models": {
+    "stage1_triage": "stage1_mobilenetv3_triage_v2",
+    "stage2_severity": "stage2_structural_rescuenet_v2",
+    "stage2_flood_segmentation": "stage2_flood_unet_v2",
+    "stage2_road_passability": "stage2_road_passability_v2"
+  },
+  "files": [
+    {
+      "model_id": "stage1_mobilenetv3_triage_v1",
+      "filename": "stage1_mobilenetv3_india_v1.pt",
+      "size_bytes": 4442591,
+      "sha256": "6b9b10a8b68e3b6baf683b28a4773262d30db3eb1936640f4941ba897d00519e",
+      "is_active": false,
+      "stage": "stage1_triage",
+      "architecture": "MobileNetV3-Small"
+    },
+    {
+      "model_id": "stage2_structural_rescuenet_v1",
+      "filename": "stage2_structural_rescuenet_v1.pt",
+      "size_bytes": 95061,
+      "sha256": "6baab138b23c440c82572115dfd02edd6c9cfdaa71a618c51d383db897119da3",
+      "is_active": false,
+      "stage": "stage2_severity",
+      "architecture": "StructuralDamageHead (4-Tier Ordinal CNN)"
+    },
+    {
+      "model_id": "stage2_road_passability_v1",
+      "filename": "stage2_road_passability_v1.pt",
+      "size_bytes": 113893,
+      "sha256": "e3456223769fbf00991efeaedd868d3eb0ab12c10022377556e71a2cbea324bc",
+      "is_active": false,
+      "stage": "stage2_road_passability",
+      "architecture": "RoadPassabilityClassifier (Conv3 + FC)"
+    },
+    {
+      "model_id": "stage2_flood_unet_v1",
+      "filename": "stage2_flood_unet_v1.pt",
+      "size_bytes": 295703,
+      "sha256": "72065b49608f8ff9989b3ea6367506b3c52631fcfa5de4d657ad996e9450f80b",
+      "is_active": false,
+      "stage": "stage2_flood_segmentation",
+      "architecture": "FloodSegmentationUNet (Convolutional U-Net)"
+    },
+    {
+      "model_id": "stage1_mobilenetv3_triage_v2",
+      "filename": "stage1_mobilenetv3_india_v2.pt",
+      "size_bytes": 4446047,
+      "sha256": "edfc08d9a67d866929e5feb291dac5f70dd341df816fcfeb511d6cd74b026315",
+      "is_active": true,
+      "stage": "stage1_triage",
+      "architecture": "MobileNetV3-Small"
+    },
+    {
+      "model_id": "stage2_flood_unet_v2",
+      "filename": "stage2_flood_unet_v2.pt",
+      "size_bytes": 296471,
+      "sha256": "4438ebd8c263105a7c4794e6f41e28e62aa07358c4d8533933ed0cd3a35f385e",
+      "is_active": true,
+      "stage": "stage2_flood_segmentation",
+      "architecture": "FloodSegmentationUNet (Convolutional U-Net)"
+    },
+    {
+      "model_id": "stage2_structural_rescuenet_v2",
+      "filename": "stage2_structural_rescuenet_v2.pt",
+      "size_bytes": 95253,
+      "sha256": "0582bdc83c67d12b6a27bd635433a993cde9d24d9bef9f28508f93387227a524",
+      "is_active": true,
+      "stage": "stage2_severity",
+      "architecture": "StructuralDamageHead (4-Tier Ordinal CNN)"
+    },
+    {
+      "model_id": "stage2_road_passability_v2",
+      "filename": "stage2_road_passability_v2.pt",
+      "size_bytes": 114149,
+      "sha256": "d1fde5cb98396475f65e704d65549e7eb26b8018b8654ced32076190d48e59cb",
+      "is_active": true,
+      "stage": "stage2_road_passability",
+      "architecture": "RoadPassabilityClassifier (Conv3 + FC)"
+    }
+  ]
+}

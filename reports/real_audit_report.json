@@ -1,0 +1,337 @@
+{
+  "metadata": {
+    "timestamp": 1789818181.1681025,
+    "iso_time": "2026-09-19T11:43:01Z",
+    "platform": "India Disaster Response AI Platform (Simulator-First & Zero-Hardware)",
+    "compliance": [
+      "DGCA Drone Rules 2021",
+      "DPDP Act 2023",
+      "MHA SDRF/NDRF Schedules 2022-2026"
+    ]
+  },
+  "audits": {
+    "stage1_triage_aider": [
+      {
+        "target_folder": "flooded_areas",
+        "expected": "flood",
+        "image_file": "flood_image0001.jpg",
+        "predicted_class": "uncertain_needs_review",
+        "confidence": 0.6457,
+        "is_match": false,
+        "top_probabilities": {
+          "flood": 0.6457,
+          "cyclone_storm": 0.0002,
+          "earthquake_collapse": 0.0006
+        }
+      },
+      {
+        "target_folder": "collapsed_building",
+        "expected": "earthquake_collapse",
+        "image_file": "collapsed_building_image0001.jpg",
+        "predicted_class": "uncertain_needs_review",
+        "confidence": 0.6233,
+        "is_match": false,
+        "top_probabilities": {
+          "flood": 0.1499,
+          "cyclone_storm": 0.0003,
+          "earthquake_collapse": 0.2205
+        }
+      },
+      {
+        "target_folder": "fire",
+        "expected": "wildfire",
+        "image_file": "fire_image0001.jpg",
+        "predicted_class": "wildfire",
+        "confidence": 0.9995,
+        "is_match": true,
+        "top_probabilities": {
+          "flood": 0.0,
+          "cyclone_storm": 0.0,
+          "earthquake_collapse": 0.0
+        }
+      },
+      {
+        "target_folder": "normal",
+        "expected": "normal_scene",
+        "image_file": "normal_image0001.jpg",
+        "predicted_class": "normal_scene",
+        "confidence": 0.9978,
+        "is_match": true,
+        "top_probabilities": {
+          "flood": 0.0,
+          "cyclone_storm": 0.0,
+          "earthquake_collapse": 0.0
+        }
+      }
+    ],
+    "stage2_rescuenet_heads": {
+      "road_passability_samples": [
+        {
+          "image_file": "10781.jpg",
+          "passability": "road_blocked",
+          "confidence": 0.7152
+        },
+        {
+          "image_file": "10793.jpg",
+          "passability": "road_blocked",
+          "confidence": 0.6189
+        },
+        {
+          "image_file": "10803.jpg",
+          "passability": "road_clear",
+          "confidence": 0.5216
+        }
+      ],
+      "structural_damage_sample": [
+        {
+          "source_scene": "10781.jpg",
+          "predicted_grade": "MAJOR_DAMAGE",
+          "confidence": 0.7932,
+          "grade_probabilities": {
+            "NO_DAMAGE": 0.0118,
+            "MINOR_DAMAGE": 0.0977,
+            "MAJOR_DAMAGE": 0.7932,
+            "DESTROYED": 0.0973
+          }
+        }
+      ]
+    },
+    "stage2_floodnet_segmentation": [
+      {
+        "image_file": "10169.jpg",
+        "water_extent_percentage": 6.32,
+        "road_passability": "road_clear",
+        "road_confidence": 0.9818,
+        "water_pixels": 756523,
+        "total_pixels": 12000000
+      },
+      {
+        "image_file": "10173.jpg",
+        "water_extent_percentage": 0.19,
+        "road_passability": "road_clear",
+        "road_confidence": 0.9261,
+        "water_pixels": 22787,
+        "total_pixels": 12000000
+      }
+    ],
+    "dpdp_privacy_redaction": {
+      "status": "compliant",
+      "pii_detected": 2,
+      "faces_blurred": 2,
+      "plates_blurred": 0,
+      "statutory_act": "India Digital Personal Data Protection Act 2023"
+    },
+    "dgca_airspace_compliance": {
+      "mission_id": "MSN-ODISHA-REAL-2026",
+      "is_cleared": true,
+      "operating_altitude_agl_m": 65.0,
+      "statutory_ceiling_agl_m": 120.0,
+      "airspace_classification": "GREEN",
+      "npnt_verified": true,
+      "rpic_id": "RPIC-IN-DGCA-CERTIFIED-09",
+      "violations": []
+    },
+    "drone_flight_telemetry": [
+      {
+        "waypoint": 0,
+        "lat": 20.4625,
+        "lon": 85.8828,
+        "altitude_m": 65.0,
+        "battery_pct": 97.5,
+        "decision": "continue_survey",
+        "confidence": 0.9865,
+        "requires_human_approval": false,
+        "justification": "Grid reconnaissance nominal. No immediate life-safety anomaly detected."
+      },
+      {
+        "waypoint": 1,
+        "lat": 20.457094594594594,
+        "lon": 85.87703054916325,
+        "altitude_m": 65.0,
+        "battery_pct": 95.0,
+        "decision": "continue_survey",
+        "confidence": 0.9693,
+        "requires_human_approval": false,
+        "justification": "Grid reconnaissance nominal. No immediate life-safety anomaly detected."
+      },
+      {
+        "waypoint": 2,
+        "lat": 20.467905405405403,
+        "lon": 85.87703054916325,
+        "altitude_m": 65.0,
+        "battery_pct": 92.5,
+        "decision": "continue_survey",
+        "confidence": 0.9558,
+        "requires_human_approval": false,
+        "justification": "Grid reconnaissance nominal. No immediate life-safety anomaly detected."
+      },
+      {
+        "waypoint": 3,
+        "lat": 20.467905405405403,
+        "lon": 85.88856945083675,
+        "altitude_m": 65.0,
+        "battery_pct": 90.0,
+        "decision": "continue_survey",
+        "confidence": 0.951,
+        "requires_human_approval": false,
+        "justification": "Grid reconnaissance nominal. No immediate life-safety anomaly detected."
+      },
+      {
+        "waypoint": 4,
+        "lat": 20.457094594594594,
+        "lon": 85.88856945083675,
+        "altitude_m": 65.0,
+        "battery_pct": 87.5,
+        "decision": "continue_survey",
+        "confidence": 0.9611,
+        "requires_human_approval": false,
+        "justification": "Grid reconnaissance nominal. No immediate life-safety anomaly detected."
+      },
+      {
+        "waypoint": 5,
+        "lat": 20.4625,
+        "lon": 85.8828,
+        "altitude_m": 65.0,
+        "battery_pct": 85.0,
+        "decision": "continue_survey",
+        "confidence": 0.9847,
+        "requires_human_approval": false,
+        "justification": "Grid reconnaissance nominal. No immediate life-safety anomaly detected."
+      }
+    ],
+    "statutory_sdrf_funding": {
+      "zone_id": "odisha_cuttack",
+      "state_code": "OD",
+      "total_estimated_fund_inr": 832500.0,
+      "total_estimated_fund_crores": 0.0833,
+      "line_items": [
+        {
+          "category": "Housing Reconstruction",
+          "unit_description": "Fully destroyed Pucca/RCC houses in plains",
+          "quantity": 2.0,
+          "unit_rate_inr": 120000.0,
+          "total_amount_inr": 240000.0,
+          "mha_norm_reference": "MHA SDRF Item 7(a)(i) - Pucca fully damaged"
+        },
+        {
+          "category": "Housing Reconstruction",
+          "unit_description": "Fully destroyed Kutcha / mud / thatch houses",
+          "quantity": 1.0,
+          "unit_rate_inr": 80000.0,
+          "total_amount_inr": 80000.0,
+          "mha_norm_reference": "MHA SDRF Item 7(a)(ii) - Kutcha fully damaged"
+        },
+        {
+          "category": "Housing Repair",
+          "unit_description": "Severely damaged Pucca houses",
+          "quantity": 1.0,
+          "unit_rate_inr": 40000.0,
+          "total_amount_inr": 40000.0,
+          "mha_norm_reference": "MHA SDRF Item 7(b)(i) - Pucca severe damage"
+        },
+        {
+          "category": "Agriculture Assistance",
+          "unit_description": "Agricultural input subsidy for crop loss (>33% damage, rainfed)",
+          "quantity": 45.0,
+          "unit_rate_inr": 8500.0,
+          "total_amount_inr": 382500.0,
+          "mha_norm_reference": "MHA SDRF Item 5 - Agriculture input subsidy"
+        },
+        {
+          "category": "Immediate Relief",
+          "unit_description": "Loss of clothing and household utensils per affected family",
+          "quantity": 18.0,
+          "unit_rate_inr": 5000.0,
+          "total_amount_inr": 90000.0,
+          "mha_norm_reference": "MHA SDRF Item 2(b) - Clothing & utensils"
+        }
+      ],
+      "plain_language_explanation": "Relief estimate of \u20b9832,500.00 (0.0833 Crores) is strictly grounded in Ministry of Home Affairs statutory SDRF schedules. It accounts for 6 verified damaged housing structures detected via aerial computer vision, 45.0 hectares of inundated agricultural cropland, and immediate subsistence assistance for 18 displaced families.",
+      "audit_notes": [
+        "All unit rates reflect official Government of India SDRF/NDRF Gazette notifications.",
+        "No black-box ML weights were used for currency valuation; values are deterministic.",
+        "Requires physical on-ground verification by District Revenue Officer before disbursement."
+      ]
+    },
+    "claim_anomaly_and_fraud": {
+      "claim_id": "CLM-MUNICIPAL-CUTTACK-2026-089",
+      "zone_id": "odisha_cuttack",
+      "claimed_destroyed_houses": 25,
+      "claimed_loss_inr": 18500000.0,
+      "satellite_verified_destroyed_houses": 3,
+      "satellite_verified_fund_inr": 832500.0,
+      "discrepancy_ratio": 22.22,
+      "is_anomalous": true,
+      "risk_level": "CRITICAL",
+      "audit_recommendation": "HOLD DISBURSEMENT. Severe mismatch: claimed losses are over 250% of aerial observations. Mandate physical re-survey by State Vigilance Commission."
+    },
+    "multilingual_sitreps": {
+      "en": {
+        "incident_id": "INC-ODISHA-REAL-2026",
+        "language": "en",
+        "headline": "CRITICAL INCIDENT ALERT: FLOOD detected in operational zone",
+        "executive_summary": "Aerial reconnaissance confirms flood with moderate intensity. Estimated water/damage extent is 6.32%.",
+        "damage_assessment_narrative": "Quantitative survey recorded 14 total structures, with 6 structures sustaining severe damage/inundation.",
+        "logistical_corridors_status": "Access corridors are CLEAR for tactical relief vehicles.",
+        "recommended_tactical_actions": [
+          "Deploy amphibious rescue craft to inundated sectors",
+          "Establish medical triage outpost on high ground",
+          "Maintain drone visual reconnaissance on flood crest"
+        ],
+        "quantitative_facts_adhered": {
+          "stage1_class": "flood",
+          "extent_pct": 6.32,
+          "road_passability": "road_clear",
+          "buildings_impacted": 6
+        },
+        "advisory_disclaimer": "Advisory report generated automatically. Quantitative metrics audited and verified against Stage-2 computer vision."
+      },
+      "hi": {
+        "incident_id": "INC-ODISHA-REAL-2026",
+        "language": "hi",
+        "headline": "\u0906\u092a\u0926\u093e \u091a\u0947\u0924\u093e\u0935\u0928\u0940: \u0915\u093e\u0930\u094d\u092f\u0915\u094d\u0937\u0947\u0924\u094d\u0930 \u092e\u0947\u0902 FLOOD \u0915\u0940 \u092a\u0941\u0937\u094d\u091f\u093f",
+        "executive_summary": "\u0921\u094d\u0930\u094b\u0928 \u0938\u0930\u094d\u0935\u0947\u0915\u094d\u0937\u0923 \u0926\u094d\u0935\u093e\u0930\u093e flood \u0915\u0940 \u092a\u0941\u0937\u094d\u091f\u093f \u0915\u0940 \u0917\u0908 \u0939\u0948\u0964 \u0915\u094d\u0937\u0924\u093f/\u091c\u0932\u092d\u0930\u093e\u0935 \u0915\u093e \u0905\u0928\u0941\u092e\u093e\u0928 6.32% \u0939\u0948\u0964",
+        "damage_assessment_narrative": "Quantitative survey recorded 14 total structures, with 6 structures sustaining severe damage/inundation.",
+        "logistical_corridors_status": "\u0930\u093e\u0939\u0924 \u090f\u0935\u0902 \u092c\u091a\u093e\u0935 \u0935\u093e\u0939\u0928\u094b\u0902 \u0915\u0947 \u0932\u093f\u090f \u092e\u0941\u0916\u094d\u092f \u092e\u093e\u0930\u094d\u0917 \u0916\u0941\u0932\u0947 \u0939\u0948\u0902\u0964",
+        "recommended_tactical_actions": [
+          "\u091c\u0932\u092e\u0917\u094d\u0928 \u0915\u094d\u0937\u0947\u0924\u094d\u0930\u094b\u0902 \u092e\u0947\u0902 \u0928\u094c\u0915\u093e \u090f\u0935\u0902 \u092c\u091a\u093e\u0935 \u0926\u0932 \u0924\u0948\u0928\u093e\u0924 \u0915\u0930\u0947\u0902",
+          "\u0938\u0941\u0930\u0915\u094d\u0937\u093f\u0924 \u090a\u0902\u091a\u0947 \u0938\u094d\u0925\u093e\u0928\u094b\u0902 \u092a\u0930 \u0930\u093e\u0939\u0924 \u090f\u0935\u0902 \u092a\u094d\u0930\u093e\u0925\u092e\u093f\u0915 \u091a\u093f\u0915\u093f\u0924\u094d\u0938\u093e \u0936\u093f\u0935\u093f\u0930 \u0932\u0917\u093e\u090f\u0902",
+          "\u091c\u0932\u0938\u094d\u0924\u0930 \u0915\u0940 \u0928\u093f\u0930\u0902\u0924\u0930 \u0928\u093f\u0917\u0930\u093e\u0928\u0940 \u0915\u0947 \u0932\u093f\u090f \u0921\u094d\u0930\u094b\u0928 \u0938\u0930\u094d\u0935\u0947\u0915\u094d\u0937\u0923 \u091c\u093e\u0930\u0940 \u0930\u0916\u0947\u0902"
+        ],
+        "quantitative_facts_adhered": {
+          "stage1_class": "flood",
+          "extent_pct": 6.32,
+          "road_passability": "road_clear",
+          "buildings_impacted": 6
+        },
+        "advisory_disclaimer": "\u092f\u0939 \u090f\u0915 \u0938\u0932\u093e\u0939\u0915\u093e\u0930 \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0939\u0948\u0964 \u0938\u092d\u0940 \u0906\u0902\u0915\u0921\u093c\u0947 \u0915\u0902\u092a\u094d\u092f\u0942\u091f\u0930 \u0935\u093f\u091c\u093c\u0928 \u0935\u093f\u0936\u094d\u0932\u0947\u0937\u0923 \u0926\u094d\u0935\u093e\u0930\u093e \u0938\u0924\u094d\u092f\u093e\u092a\u093f\u0924 \u0939\u0948\u0902\u0964"
+      },
+      "or": {
+        "incident_id": "INC-ODISHA-REAL-2026",
+        "language": "or",
+        "headline": "\u0b1c\u0b30\u0b41\u0b30\u0b40\u0b15\u0b3e\u0b33\u0b40\u0b28 \u0b2c\u0b3f\u0b2a\u0b30\u0b4d\u0b2f\u0b4d\u0b5f\u0b5f \u0b38\u0b42\u0b1a\u0b28\u0b3e: \u0b2a\u0b4d\u0b30\u0b2d\u0b3e\u0b2c\u0b3f\u0b24 \u0b05\u0b1e\u0b4d\u0b1a\u0b33\u0b30\u0b47 FLOOD \u0b1a\u0b3f\u0b39\u0b4d\u0b28\u0b1f",
+        "executive_summary": "\u0b21\u0b4d\u0b30\u0b4b\u0b28\u0b4d \u0b38\u0b30\u0b4d\u0b2d\u0b47\u0b15\u0b4d\u0b37\u0b23\u0b30\u0b41 flood \u0b38\u0b4d\u0b2a\u0b37\u0b4d\u0b1f \u0b39\u0b4b\u0b07\u0b1b\u0b3f\u0964 \u0b2a\u0b4d\u0b30\u0b2d\u0b3e\u0b2c\u0b3f\u0b24 \u0b15\u0b4d\u0b37\u0b47\u0b24\u0b4d\u0b30 \u0b2a\u0b4d\u0b30\u0b3e\u0b5f 6.32%\u0964",
+        "damage_assessment_narrative": "Quantitative survey recorded 14 total structures, with 6 structures sustaining severe damage/inundation.",
+        "logistical_corridors_status": "\u0b30\u0b3f\u0b32\u0b3f\u0b2b \u0b17\u0b3e\u0b21\u0b3c\u0b3f \u0b1a\u0b33\u0b3e\u0b1a\u0b33 \u0b2a\u0b3e\u0b07\u0b01 \u0b30\u0b3e\u0b38\u0b4d\u0b24\u0b3e \u0b16\u0b4b\u0b32\u0b3e \u0b05\u0b1b\u0b3f\u0964",
+        "recommended_tactical_actions": [
+          "\u0b2a\u0b4d\u0b30\u0b2d\u0b3e\u0b2c\u0b3f\u0b24 \u0b05\u0b1e\u0b4d\u0b1a\u0b33\u0b30\u0b47 \u0b09\u0b26\u0b4d\u0b27\u0b3e\u0b30\u0b15\u0b3e\u0b30\u0b40 \u0b21\u0b19\u0b4d\u0b17\u0b3e \u0b2e\u0b41\u0b24\u0b5f\u0b28 \u0b15\u0b30\u0b28\u0b4d\u0b24\u0b41",
+          "\u0b2c\u0b3e\u0b24\u0b4d\u0b5f\u0b3e/\u0b2c\u0b28\u0b4d\u0b5f\u0b3e \u0b06\u0b36\u0b4d\u0b30\u0b5f\u0b38\u0b4d\u0b25\u0b33\u0b40\u0b30\u0b47 \u0b36\u0b41\u0b16\u0b3f\u0b32\u0b3e \u0b16\u0b3e\u0b26\u0b4d\u0b5f \u0b13 \u0b2a\u0b3e\u0b28\u0b40\u0b5f \u0b1c\u0b33 \u0b2c\u0b4d\u0b5f\u0b2c\u0b38\u0b4d\u0b25\u0b3e \u0b15\u0b30\u0b28\u0b4d\u0b24\u0b41",
+          "\u0b21\u0b4d\u0b30\u0b4b\u0b28\u0b4d \u0b2e\u0b3e\u0b27\u0b4d\u0b5f\u0b2e\u0b30\u0b47 \u0b28\u0b3f\u0b30\u0b28\u0b4d\u0b24\u0b30 \u0b28\u0b1c\u0b30 \u0b30\u0b16\u0b28\u0b4d\u0b24\u0b41"
+        ],
+        "quantitative_facts_adhered": {
+          "stage1_class": "flood",
+          "extent_pct": 6.32,
+          "road_passability": "road_clear",
+          "buildings_impacted": 6
+        },
+        "advisory_disclaimer": "\u0b0f\u0b39\u0b3e \u0b0f\u0b15 \u0b2a\u0b30\u0b3e\u0b2e\u0b30\u0b4d\u0b36\u0b26\u0b3e\u0b24\u0b3e \u0b30\u0b3f\u0b2a\u0b4b\u0b30\u0b4d\u0b1f\u0964 \u0b2a\u0b30\u0b3f\u0b2e\u0b3e\u0b23\u0b3e\u0b24\u0b4d\u0b2e\u0b15 \u0b24\u0b25\u0b4d\u0b5f \u0b38\u0b4d\u0b71\u0b5f\u0b02\u0b1a\u0b3e\u0b33\u0b3f\u0b24 \u0b2d\u0b3e\u0b2c\u0b47 \u0b05\u0b21\u0b3f\u0b1f\u0b4d \u0b39\u0b4b\u0b07\u0b1b\u0b3f\u0964"
+      }
+    },
+    "cryptographic_audit_ledger": {
+      "ledger_file": "audit_trail_real.jsonl",
+      "is_intact": true,
+      "blocks_audited": 4,
+      "verification_message": "All 4 blocks cryptographically verified intact."
+    }
+  }
+}

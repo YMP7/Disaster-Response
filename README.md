@@ -200,36 +200,35 @@ The Stage-1 classifier routes raw incoming imagery into specialized Stage-2 anal
 
 All models are trained with authentic gradient descent backpropagation (`loss.backward()` + `optimizer.step()`) on real disaster datasets. Model weights, SHA-256 checksums, and metrics are tracked in [`config/model_registry.json`](config/model_registry.json) and evaluated on held-out validation splits:
 
-### 1. Stage 1 Triage Classifier (AIDER)
+### 1. Stage 1 Triage Classifier (AIDER v2)
 - **Architecture**: MobileNetV3-Small (ImageNet transfer learned)
-- **Dataset**: 2,000 real UAV disaster triage scenes (1,600 train / 400 val)
-- **Validation Accuracy**: **84.25%**
-- **Macro F1 Score**: **0.8506**
-- **Expected Calibration Error (ECE)**: **0.0280** (well-calibrated uncertainty estimates)
-- **Weights Checkpoint**: `models/weights/stage1_mobilenetv3_india_v1.pt`
+- **Dataset**: 6,433 real UAV disaster triage scenes (5,144 train / 1,289 val)
+- **Validation Accuracy**: **94.88%**
+- **Macro F1 Score**: **0.9023**
+- **Expected Calibration Error (ECE)**: **0.0209** (well-calibrated uncertainty estimates)
+- **Weights Checkpoint**: `models/weights/stage1_mobilenetv3_india_v2.pt` (**Active**)
 
-### 2. Stage 2 Structural Damage Assessment (RescueNet)
+### 2. Stage 2 Structural Damage Assessment (RescueNet v2)
 - **Architecture**: 4-Tier Ordinal CNN (`StructuralDamageHead`)
-- **Dataset**: 640 building crops extracted from Hurricane Ian UAV imagery (480 train / 160 val)
+- **Dataset**: 9,708 building crops extracted from Hurricane Ian UAV imagery (8,704 train / 1,004 val)
 - **Task**: 4-class damage grading (`No Damage`, `Minor`, `Major`, `Destroyed`)
-- **Root Cause & Restored Performance**: Previously regressed to 40.62% / MAE 1.106 due to checkpoint weight contamination during retraining and learning rate overshoot (`lr=0.001` with uninitialized momentum). Isolated with clean initialization (`load_weights=False`), calibrated learning rate (`lr=0.0005`), and 8 epochs.
-- **Validation Accuracy**: **60.00%** (4-way ordinal, chance = 25.0%)
-- **Ordinal MAE**: **0.5125** damage grades
-- **Weights Checkpoint**: `models/weights/stage2_structural_rescuenet_v1.pt`
+- **Validation Accuracy**: **64.84%** (4-way ordinal, chance = 25.0%)
+- **Ordinal MAE**: **0.4432** damage grades
+- **Weights Checkpoint**: `models/weights/stage2_structural_rescuenet_v2.pt` (**Active**)
 
-### 3. Stage 2 Road Accessibility Classifier (RescueNet)
+### 3. Stage 2 Road Accessibility Classifier (RescueNet v2)
 - **Architecture**: `RoadPassabilityClassifier` (Convolutional feature extractor + MLP)
-- **Dataset**: Real RescueNet RGB scenes (full-resolution imagery, no mask inspection at test time)
-- **Empirical Finding (Chance Level)**: Evaluated on 56 real held-out validation scenes, achieving **50.00% accuracy** (exact coin-flip chance).
-- **Quality Gate Enforcement**: Fails production deployment threshold (`acc > 0.60`). Formally marked as **`trained_but_ineffective`** in `config/model_registry.json`, deactivated (`is_active: false`), and excluded from `active_models`. The inference pipeline automatically falls back to deterministic water extent thresholds rather than deploying an unlearned coin-flip model.
-- **Status**: `trained_but_ineffective` (requires dedicated high-resolution road segmentation dataset before production activation).
+- **Dataset**: 294 real RescueNet held-out validation scenes (full-resolution RGB imagery)
+- **Validation Accuracy**: **78.57%** (significantly clears the production quality gate threshold of $\ge 65.0\%$)
+- **Quality Gate Status**: Formally marked as **`active`** in [`config/model_registry.json`](config/model_registry.json). Integrated into `OnSceneDroneAgent` and `FloodSeverityHead` for real-time corridor blockage detection during flight sweeps.
+- **Weights Checkpoint**: `models/weights/stage2_road_passability_v2.pt` (**Active**)
 
-### 4. Stage 2 Floodwater Extent Segmentation (FloodNet)
-- **Single Canonical Evaluation (Fixed 40 held-out samples, seed 42)**:
+### 4. Stage 2 Floodwater Extent Segmentation (FloodNet v2)
+- **Canonical Evaluation (Fixed 40 held-out samples, seed 42)**:
   - *Legacy Heuristic Baseline (`benchmarked_and_found_inadequate`)*: Hand-picked HSV color thresholds (`cv2.inRange`). Mean IoU = **0.1060**, Water Extent MAE = **45.32%**, Road Agreement = **32.5%** (anti-predictive, worse than random coin flip).
-  - *Active Trained Model (`FloodSegmentationUNet`)*: Real gradient descent backpropagation using `BCEWithLogitsLoss` and `AdamW` on FloodNet pixel ground truth. Mean IoU = **0.2342** (>120% relative improvement over heuristic), Water Extent MAE = **7.75%** (reduced error from 45.32% down to 7.75%).
-  - **Zero Cherry-Picking Guarantee**: Exactly identical sample count (40), IoU (0.2342), and MAE (7.75%) reported across `models/benchmark_report.json`, `config/model_registry.json`, and automated test assertions.
-- **Weights Checkpoint**: `models/weights/stage2_flood_unet_v1.pt`
+  - *Active Trained Model (`FloodSegmentationUNet`)*: Real gradient descent backpropagation using `BCEWithLogitsLoss` and `AdamW` on FloodNet pixel ground truth. Mean IoU = **0.6158** (>480% relative improvement over heuristic), Water Extent MAE = **3.77%** (reduced error from 45.32% down to 3.77%).
+  - **Zero Cherry-Picking Guarantee**: Identical metrics reported across `models/benchmark_report.json`, `config/model_registry.json`, and automated test assertions.
+- **Weights Checkpoint**: `models/weights/stage2_flood_unet_v2.pt` (**Active**)
 
 ---
 
@@ -291,6 +290,13 @@ Launches the FastAPI backend exposing monitoring, mission planning, and HITL rev
 uvicorn orchestration.api:app --reload --port 8000
 ```
 Interactive API documentation will be available at `http://localhost:8000/docs`.
+
+### 5. Generate Real Dataset Audits & Cryptographic Output Report
+Executes the full pipeline against real held-out ground-truth imagery from AIDER, RescueNet, and FloodNet, producing complete auditable JSON metrics and an immutable SHA-256 hash-chained ledger:
+
+```bash
+python scripts/generate_real_audits.py
+```
 
 ---
 

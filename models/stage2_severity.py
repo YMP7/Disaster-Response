@@ -293,11 +293,22 @@ class RoadPassabilityClassifier(nn.Module):
 class FloodSeverityHead:
     """Estimates water extent, road blockages, and building inundation using trained U-Net."""
 
-    def __init__(self, unet_weights_path: Optional[str] = None, use_road_classifier: bool = False):
+    def __init__(self, unet_weights_path: Optional[str] = None, use_road_classifier: Optional[bool] = None):
         self.unet = FloodSegmentationUNet(weights_path=unet_weights_path)
         self.damage_classifier = StructuralDamageHead()
         self.road_classifier = RoadPassabilityClassifier()
-        self.use_road_classifier = use_road_classifier
+        if use_road_classifier is not None:
+            self.use_road_classifier = use_road_classifier
+        else:
+            reg_path = Path(__file__).resolve().parent.parent / "config" / "model_registry.json"
+            active = False
+            if reg_path.exists():
+                try:
+                    reg = json.loads(reg_path.read_text(encoding="utf-8"))
+                    active = "stage2_road_passability" in reg.get("active_models", {})
+                except Exception:
+                    pass
+            self.use_road_classifier = active
 
     def analyze(self, image_rgb: np.ndarray) -> Dict[str, Any]:
         h, w, _ = image_rgb.shape
